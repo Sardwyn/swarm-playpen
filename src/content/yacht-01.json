@@ -1,0 +1,180 @@
+{
+  "id": "sunseeker-predator-55-half-breadboard",
+  "note": "Midships inboard profile at z = +0.65 m, starboard of centreline, cut through the centre of a stringer void. Principal characteristics are Sunseeker's published figures; profiles are derived from them and are marked as assumptions where they are not.",
+
+  "principal": {
+    "loa": 17.14,
+    "beam": 4.93,
+    "draft": 1.48,
+    "displacementKg": 28700,
+    "fuelLitres": 1800,
+    "freshWaterLitres": 430,
+    "source": "Sunseeker Predator 55 published specification"
+  },
+
+  "profiles": {
+    "_note": "11 samples at u = 0.0 (transom) to 1.0 (stem). Linear interpolation between samples. keelLift is the fraction of the draft by which the keel is lifted above its lowest point: 0 at the deepest station, 1 at the ends. ASSUMED — replace with yard lines plan.",
+    "keelLift": [0.62, 0.8, 0.94, 1.0, 0.97, 0.86, 0.68, 0.46, 0.26, 0.1, 0.02],
+    "beamPlan": [0.78, 0.9, 0.97, 1.0, 1.0, 0.99, 0.95, 0.86, 0.7, 0.45, 0.08],
+    "freeboard": [1.78, 1.8, 1.84, 1.9, 1.98, 2.08, 2.2, 2.34, 2.48, 2.6, 2.68],
+    "deadriseDeg": [19, 20, 21, 22, 24, 27, 31, 35, 40, 45, 50],
+    "chineRatio": [0.95, 0.95, 0.94, 0.93, 0.92, 0.9, 0.87, 0.82, 0.74, 0.6, 0.35]
+  },
+
+  "levels": {
+    "_note": "Vertical levels above the baseline (y = 0 at the lowest point of the keel). ASSUMED.",
+    "engineRoomSole": 1.75,
+    "engineRoomDeckhead": 2.6,
+    "cockpitSole": 2.05,
+    "mainDeckSole": 3.21
+  },
+
+  "bulkheads": {
+    "_note": "Transverse positions, x in metres from midships (negative aft). ASSUMED.",
+    "engineBayForward": -2.4,
+    "engineBayAft": -8.1,
+    "cockpitForward": 1.2,
+    "forwardCabinForward": 4.6,
+    "peak": 7.9
+  },
+
+  "regions": [
+    {
+      "id": "engine-room",
+      "name": "Engine room",
+      "kind": "compartment",
+      "x0": -8.1,
+      "x1": -2.4,
+      "y0": 1.75,
+      "y1": 2.6,
+      "accessible": "direct"
+    },
+    {
+      "id": "void-engine-overhead",
+      "name": "Pipe and cable void over engine room",
+      "kind": "void",
+      "x0": -8.1,
+      "x1": -2.4,
+      "y0": 2.6,
+      "y1": 3.21,
+      "accessible": "hatch"
+    },
+    {
+      "id": "cockpit",
+      "name": "Cockpit",
+      "kind": "compartment",
+      "x0": -2.4,
+      "x1": 1.2,
+      "y0": 2.05,
+      "y1": 3.21,
+      "accessible": "direct"
+    },
+    {
+      "id": "void-stbd-fwd",
+      "name": "Starboard stringer void, forward",
+      "kind": "void",
+      "x0": 1.2,
+      "x1": 6.5,
+      "y0": 1.9,
+      "y1": 3.21,
+      "accessible": "hatch"
+    }
+  ],
+
+  "hatches": [
+    {
+      "id": "hatch-engine-bulkhead",
+      "name": "Engine bay access, starboard",
+      "x": -2.4,
+      "y": 2.35,
+      "kind": "access",
+      "from": "engine-room",
+      "leadsTo": "void-engine-overhead",
+      "clearWidthMm": 400,
+      "note": "Reached from the engine room. Cut in the side of the engine bay bulkhead."
+    },
+    {
+      "id": "hatch-mid-deck",
+      "name": "Main deck inspection hatch",
+      "x": 3.0,
+      "y": 3.1,
+      "kind": "access",
+      "from": "exterior",
+      "leadsTo": "void-stbd-fwd",
+      "clearWidthMm": 200,
+      "note": "Through the main deck. ASSUMED position and size."
+    },
+    {
+      "id": "hatch-foredeck",
+      "name": "Foredeck inspection hatch",
+      "x": 5.9,
+      "y": 3.1,
+      "kind": "access",
+      "from": "exterior",
+      "leadsTo": "void-stbd-fwd",
+      "clearWidthMm": 200,
+      "note": "Through the main deck. ASSUMED position and size."
+    }
+  ],
+
+  "crawlerDiameterMm": 120,
+
+  "sources": [
+    { "id": "src-engines", "kind": "thermal", "x": -6.4, "y": 2.0, "label": "Main engines" },
+    { "id": "src-exhaust", "kind": "thermal", "x": -7.6, "y": 2.5, "label": "Exhaust run" },
+    { "id": "src-vapour", "kind": "vapour", "x": -7.2, "y": 2.2, "label": "Fuel vapour in engine space" },
+    { "id": "src-bilge", "kind": "water", "x": -5.0, "y": 1.85, "label": "Bilge" }
+  ],
+
+  "faults": [
+    {
+      "id": "f-condensation",
+      "class": "void.condensation",
+      "region": "void-stbd-fwd",
+      "x": 4.2,
+      "y": 2.4,
+      "severity": 2,
+      "observable": "humidity",
+      "note": "Condensation in the forward stringer void. The money fault: invisible to the hull-side capacitance meter, and the space is only reachable through the deck."
+    },
+    {
+      "id": "f-leak",
+      "class": "void.leak",
+      "region": "void-engine-overhead",
+      "x": -5.6,
+      "y": 2.9,
+      "severity": 3,
+      "observable": "humidity",
+      "note": "Water ingress over the engine bay. Distinguishable from condensation only by the time series."
+    },
+    {
+      "id": "f-vapour",
+      "class": "enginebay.vapour",
+      "region": "engine-room",
+      "x": -7.2,
+      "y": 2.2,
+      "severity": 3,
+      "observable": "vapour",
+      "note": "Fuel vapour. The safety gate: a person should not enter to confirm it."
+    },
+    {
+      "id": "f-hotspot",
+      "class": "thermal.hotspot",
+      "region": "engine-room",
+      "x": -6.4,
+      "y": 2.1,
+      "severity": 2,
+      "observable": "thermal",
+      "note": "Hot bearing on the port engine."
+    }
+  ],
+
+  "assumptions": [
+    "Transverse bulkhead positions are assumed from the layout description and are NOT from a lines plan.",
+    "Deck and deckhead heights are assumed from general arrangement and are NOT from a lines plan.",
+    "The cut plane at z = +0.65 m is chosen to pass through the centre of a stringer void; the actual stringer positions are NOT known. The cut plane leaves the hull forward of about x = 6.9 m, which is why the forward void stops there.",
+    "Inspection hatch positions and clear widths are assumed. The existence, size and location of any deck hatch on this class is unknown and is question A2 for the marine engineer.",
+    "The void under the main deck is treated as one continuous volume. On a real boat the transverse floors divide it into bays, which changes the access graph.",
+    "The crawler diameter is assumed. It is the parameter that decides whether a deck hatch is a route or a wall."
+  ]
+}

@@ -21,7 +21,8 @@
     "diag:inchworm": "vite-node scripts/diag-inchworm.ts",
     "diag:handoff": "vite-node scripts/diag-handoff.ts",
     "diag:regret": "vite-node scripts/diag-regret.ts",
-    "diag:s9": "vite-node scripts/diag-s9.ts"
+    "diag:s9": "vite-node scripts/diag-s9.ts",
+    "diag:yacht": "vite-node scripts/diag-yacht-form.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
