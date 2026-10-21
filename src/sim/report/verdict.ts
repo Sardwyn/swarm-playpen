@@ -60,7 +60,12 @@ export function buildVerdict(
     // The matched finding, if the report matched one.
     const matched = findings.find((f) => f.matchedAnomalyId === a.id)
 
-    // The nearest candidate of any kind — the record of where the swarm was.
+    // The nearest finding of any kind — the record of where the swarm was.
+    //
+    // Findings, not raw candidates: the findings are the associated candidates,
+    // which is what the report carries, and a diagnostic that measures the
+    // nearest over a different set than the report does will disagree with the
+    // report it is supposed to be checking.
     let nearest = Number.POSITIVE_INFINITY
     let nearestId = '—'
     for (const f of findings) {

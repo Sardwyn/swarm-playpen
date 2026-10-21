@@ -19,6 +19,7 @@
 
 import { createRun, defaultConfig, step, coverageGaps } from '../src/sim/sim/run.ts'
 import { buildReport } from '../src/sim/report/report.ts'
+import { buildVerdict } from '../src/sim/report/verdict.ts'
 import { GROUND_BOT } from '../src/sim/sim/agents.ts'
 import { HOVER, INCHWORM, isLumenPose } from '../src/sim/types.ts'
 import {
@@ -152,9 +153,11 @@ for (const f of report.findings) {
 }
 
 head('THE ORACLE — found or missed')
-const matched = new Set(
-  report.findings.map((f) => f.matchedAnomalyId).filter((id): id is string => id !== null),
-)
+const manifoldAgents = new Map<string, string[]>()
+for (const a of run.agents) {
+  manifoldAgents.set(a.manifold, [...(manifoldAgents.get(a.manifold) ?? []), a.spec.id])
+}
+const verdict = buildVerdict(report.findings, run.truth, manifoldAgents)
 const reasons = new Map(
   run.truth.anomalies
     .filter((a) => (a as unknown as { missReason?: string }).missReason !== undefined)
@@ -162,58 +165,25 @@ const reasons = new Map(
 )
 
 /**
- * Classify a miss by what actually caused it, measured rather than asserted.
+ * The report's own verdict, printed.
  *
- * The distinction that matters: did the **architecture of the boat** stop the swarm,
- * or did the **detector** fail? The first is the product — it is what a surveyor
- * cannot do and a robot might. The second is a detector limitation, and reporting
- * it as a coverage failure would be dishonest.
- *
- * ## Why the candidates, and not the agents' final poses
- *
- * An agent's final pose is where it stopped, not where it worked. The ground bot
- * covered 98.9% of the engine room and finished in a corner; measuring a fault
- * against that corner would call a fault four metres away "unreachable" when the
- * swarm had been right past it. The candidates are the record of where the swarm
- * actually detected *something*, so the nearest candidate is the honest measure of
- * how close the swarm got.
- *
- * So: a candidate within a metre of the fault means the swarm was there and the
- * detector did not match it — a detection miss. No candidate anywhere near means
- * the swarm never got there — an architectural miss.
+ * The diagnostic used to carry its own copy of the classification, and the two
+ * copies disagreed: the diagnostic measured the nearest candidate over the run's
+ * raw candidates and the report over the associated findings, so the same miss
+ * read 0.63 m in the terminal and 0.69 m in the browser. Two copies of a
+ * definition is how a diagnostic ends up checking something other than what it
+ * says it checks. There is one now.
  */
-function classifyMiss(manifold: string, position: readonly [number, number, number]): string {
-  const onManifold = run.agents.filter((a) => a.manifold === manifold)
-  if (onManifold.length === 0) {
-    return 'ARCHITECTURE — no agent in the swarm lives on this manifold'
-  }
-  let nearest = Number.POSITIVE_INFINITY
-  let nearestId = '—'
-  for (const c of run.candidates) {
-    const d = Math.hypot(c.x - position[0], c.z - position[2])
-    if (d < nearest) {
-      nearest = d
-      nearestId = c.detectorId
-    }
-  }
-  const kind = nearest <= 1.0 ? 'DETECTION' : 'ARCHITECTURE'
-  const agents = onManifold
-    .map((a) => (isLumenPose(a.pose) ? `${a.spec.id} (in a conduit)` : a.spec.id))
-    .join(', ')
-  return `${kind} — agents on this manifold: ${agents}; nearest candidate ${nearestId} at ${nearest.toFixed(2)} m`
-}
-
 let missed = 0
-for (const a of run.truth.anomalies) {
-  const hit = matched.has(a.id)
-  if (!hit) missed++
+for (const v of verdict) {
+  if (!v.found) missed++
   console.log(
-    `  ${a.id.padEnd(8)} ${a.class.padEnd(18)} ${a.manifold.padEnd(12)} sev ${a.severity.toFixed(2)}  ` +
-      `${hit ? 'FOUND' : 'MISSED'}`,
+    `  ${v.id.padEnd(8)} ${v.cls.padEnd(30)} ${v.manifold.padEnd(12)} sev ${v.severity.toFixed(2)}  ` +
+      `${v.found ? 'FOUND' : 'MISSED'}`,
   )
-  if (!hit) {
-    console.log(`      ${classifyMiss(a.manifold, a.position)}`)
-    const why = reasons.get(a.id)
+  if (!v.found) {
+    console.log(`      ${v.kind} — ${v.detail}`)
+    const why = reasons.get(v.id)
     if (why !== undefined) console.log(`      ${why}`)
   }
 }

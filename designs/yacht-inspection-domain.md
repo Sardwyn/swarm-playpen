@@ -540,12 +540,12 @@ the terminal are the same boat.
 engine room coverage 100.0%   4 found, 3 missed
 
   yc-01  exhaust_leak              sev 0.60  FOUND
-  yc-02  blocked_ventilation       sev 0.50  DETECTION     nearest candidate 0.63 m
+  yc-02  blocked_ventilation       sev 0.50  DETECTION     nearest candidate 0.69 m
   yc-03  active_water_ingress      sev 0.75  FOUND
   yc-04  condensation_in_void      sev 0.85  ARCHITECTURE  nearest candidate 6.41 m
   yc-05  blocked_drainage          sev 0.40  FOUND
   yc-06  fuel_line_debris          sev 0.50  FOUND
-  yc-07  salt_hygroscopic_equilibrium sev 0.70  DETECTION  nearest candidate 0.73 m
+  yc-07  salt_hygroscopic_equilibrium sev 0.70  DETECTION  nearest candidate 0.78 m
 ```
 
 **The most severe fault on the vessel is in the forward stringer void, and the swarm
@@ -569,7 +569,7 @@ correct claim is smaller and sharper, and it is the one the surveyor's own
 practice is already built on.
 
 **And the other two misses are not dressed up as coverage failures — and they are not
-the same failure either.** The swarm was 0.63 m from the blocked vent and the
+the same failure either.** The swarm was 0.69 m from the blocked vent and the
 blocked-vent detector did not fire, because the air proxy at the port rises 118%
 over the field's ambient and the detector's gate is a 150% rise. That is a
 *calibration* finding: the entire field peaks below the threshold, so no position in
@@ -602,7 +602,7 @@ correct claim is smaller and sharper, and it is the one the surveyor's own
 practice is already built on.
 
 **And the other two misses are not dressed up as coverage failures.** The swarm was
-0.63 m and 0.01 m away from those faults and the detectors did not match them.
+0.69 m and 0.78 m away from those faults and the detectors did not match them.
 That is a detector limitation and it is reported as one.
 
 The distinction is the report. *The boat's architecture stopped the swarm* versus *our
