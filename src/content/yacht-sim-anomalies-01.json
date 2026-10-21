@@ -68,7 +68,7 @@
       "expectedDetector": "humidity.baseline",
       "sourceStrength": 0.36,
       "sourceSigma": 1.0,
-      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The forward stringer void is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can. The nearest humidity-capable agent is 6.6 m away, in the engine room, and its sensor range is 3 m.",
+      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The forward stringer void is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot is 240 mm across, and the inchworm is confined to conduits, of which the void has none. A person cannot get their body through a 200 mm hand-hole either - but a person can kneel on the deck, put an arm and a torch through it, and reach this fault 760 mm below. Nothing in the swarm can get within 340 mm of the hole. The nearest candidate the swarm raised was 6.41 m away, in the engine room, and its sensor range is 3 m.",
       "note": "The fault the whole product exists for, and it sits directly under the forward deck hatch: 760 mm below the deck, inside a space that is entered from nowhere else. Condensation in a void is the most common void fault on any boat and the one nobody reports, because it needs somebody to have put an arm in there. That is still a person-and-a-torch job today. A person's arm reaches it; nothing in the swarm can get its sensor within 340 mm of the hole."
     },
     {

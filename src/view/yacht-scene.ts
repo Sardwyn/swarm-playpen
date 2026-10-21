@@ -12,9 +12,14 @@
  *
  * ## The one image the whole project is for
  *
- * A person stands in the stringer void, because a person *can* get in there and
- * nothing in the swarm can. That is the product statement as a picture, and no
- * amount of text does it as fast.
+ * A person kneels on the deck with an arm through a 200 mm hole in it, reaching
+ * down into the stringer void, because a 200 mm opening is a hand-hole and a
+ * person can put a hand and a torch through one — and nothing in the swarm can
+ * get its sensor within 340 mm of it.
+ *
+ * The first version of this scene put a person *standing inside* the void. That
+ * was impossible, and it was the visual form of a claim that was also
+ * impossible. The reach is the picture that is true.
  *
  * ## What is on screen
  *
