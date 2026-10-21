@@ -1,0 +1,294 @@
+{
+  "id": "anomalies-01",
+  "houseId": "house-01",
+  "note": "GROUND TRUTH. The sim reads this to build the scalar fields and to score detections. No sensor, detector or agent may import it — enforced by test/boundary/no-ground-truth-leak.test.ts.",
+  "contentNote": "house-01.json contains a fifth non-blocking object, `curtain-living`, which is deliberately NOT an authored hazard. It exists so the clutter detector's known over-fire (spec §4.6, no vision) has something real to over-fire on. Remove it and the measured precision improvement would be a fiction.",
+  "crackLimitation": "structural_crack is NOT detectable at Stage B, and that is a finding rather than a bug. Two reasons, both structural. (1) The detector is geometric: it resolves a thin, isolated, linear obstacle, and cannot resolve a hairline crack in a wall surface, which is what most real cracks are. (2) A feature thin enough to be proxy-detectable is thinner than the navigation inflation band: a 0.10 m pier in a 0.05 m grid with 0.20 m clearance becomes an impassable 0.50 m exclusion, and the robot wedges against it. That is the general finding worth carrying forward — **a defect the robot cannot get close enough to see is a defect it cannot report, and the navigation mask is what prevents it.** Authored freestanding geometry for these two instances was tried and removed for exactly this reason; see spec §13.7. The class is reported as missed with this reason attached rather than as a measured 0.00.",
+  "coverageThreshold": 0.85,
+  "iouMatch": 0.3,
+  "anomalies": [
+    {
+      "id": "ml-01",
+      "class": "moisture_leak",
+      "manifold": "ground",
+      "position": [4.2, 0.05, -2.2],
+      "halfExtents": [0.45, 0.3, 0.45],
+      "severity": 0.8,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.34,
+      "sourceSigma": 0.85
+    },
+    {
+      "id": "ml-02",
+      "class": "moisture_leak",
+      "manifold": "ground",
+      "position": [-4.6, 0.4, -2.6],
+      "halfExtents": [0.5, 0.4, 0.4],
+      "severity": 0.65,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.28,
+      "sourceSigma": 0.9
+    },
+    {
+      "id": "ml-03",
+      "class": "moisture_leak",
+      "manifold": "volumetric",
+      "position": [0.0, 1.5, 2.8],
+      "halfExtents": [0.6, 0.3, 0.5],
+      "severity": 0.9,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.38,
+      "sourceSigma": 1.1
+    },
+    {
+      "id": "ml-04",
+      "class": "moisture_leak",
+      "manifold": "constrained",
+      "position": [0.0, -0.2, 0.0],
+      "halfExtents": [1.2, 0.2, 1.2],
+      "severity": 0.55,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.22,
+      "sourceSigma": 0.7
+    },
+
+    {
+      "id": "ta-01",
+      "class": "thermal_anomaly",
+      "manifold": "ground",
+      "position": [4.1, 0.6, 2.45],
+      "halfExtents": [0.4, 0.5, 0.35],
+      "severity": 0.95,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": 14.0,
+      "sourceSigma": 0.7,
+      "sign": 1
+    },
+    {
+      "id": "ta-02",
+      "class": "thermal_anomaly",
+      "manifold": "ground",
+      "position": [5.3, 0.9, -0.75],
+      "halfExtents": [0.35, 0.6, 0.35],
+      "severity": 0.7,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": -9.0,
+      "sourceSigma": 0.6,
+      "sign": -1
+    },
+    {
+      "id": "ta-03",
+      "class": "thermal_anomaly",
+      "manifold": "ground",
+      "position": [0.2, 1.4, -1.35],
+      "halfExtents": [1.1, 0.5, 0.35],
+      "severity": 0.5,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": -6.5,
+      "sourceSigma": 1.0,
+      "sign": -1
+    },
+    {
+      "id": "ta-04",
+      "class": "thermal_anomaly",
+      "manifold": "volumetric",
+      "position": [0.0, 1.8, 2.6],
+      "halfExtents": [1.4, 0.4, 0.8],
+      "severity": 0.85,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": 11.0,
+      "sourceSigma": 1.3,
+      "sign": 1
+    },
+
+    {
+      "id": "ta-05",
+      "class": "thermal_anomaly",
+      "manifold": "ground",
+      "position": [1.3, 2.35, 1.5],
+      "halfExtents": [0.35, 0.25, 0.35],
+      "severity": 0.6,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": -7.5,
+      "sourceSigma": 0.55,
+      "sign": -1
+    },
+
+    {
+      "id": "sc-01",
+      "class": "structural_crack",
+      "manifold": "ground",
+      "position": [-0.45, 1.1, -1.0],
+      "halfExtents": [0.2, 0.9, 0.25],
+      "severity": 0.85,
+      "expectedDetector": "geometry.crack_proxy",
+      "sourceStrength": 0,
+      "sourceSigma": 0.4
+    },
+    {
+      "id": "sc-02",
+      "class": "structural_crack",
+      "manifold": "volumetric",
+      "position": [4.0, 2.2, 3.4],
+      "halfExtents": [0.6, 0.3, 0.2],
+      "severity": 0.7,
+      "expectedDetector": "geometry.crack_proxy",
+      "sourceStrength": 0,
+      "sourceSigma": 0.4
+    },
+    {
+      "id": "sc-03",
+      "class": "structural_crack",
+      "manifold": "ground",
+      "position": [0.45, 1.0, 2.4],
+      "halfExtents": [0.15, 0.8, 0.3],
+      "severity": 0.6,
+      "expectedDetector": "geometry.crack_proxy",
+      "sourceStrength": 0,
+      "sourceSigma": 0.4
+    },
+
+    {
+      "id": "bv-01",
+      "class": "blocked_vent",
+      "manifold": "ground",
+      "position": [3.7, 0.35, 2.85],
+      "halfExtents": [0.3, 0.3, 0.3],
+      "severity": 0.75,
+      "expectedDetector": "geometry.blocked_vent",
+      "sourceStrength": 0.5,
+      "sourceSigma": 0.9
+    },
+    {
+      "id": "bv-02",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [1.0, 0.0, 0.0],
+      "halfExtents": [0.8, 0.2, 0.2],
+      "severity": 0.65,
+      "expectedDetector": "geometry.blocked_vent",
+      "sourceStrength": 0.4,
+      "sourceSigma": 0.5
+    },
+    {
+      "id": "bv-03",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [-2.0, 0.0, -1.0],
+      "halfExtents": [0.3, 0.2, 0.4],
+      "severity": 0.7,
+      "expectedDetector": "geometry.blocked_vent",
+      "sourceStrength": 0.45,
+      "sourceSigma": 0.5
+    },
+    {
+      "id": "ob-01",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [-1.50, 0.0, 3.66],
+      "halfExtents": [0.2, 0.07, 0.2],
+      "severity": 0.6,
+      "expectedDetector": "constrained.obstruction",
+      "conduit": { "conduitId": "void-perimeter", "arc": 6.5 },
+      "sourceStrength": 0.0,
+      "sourceSigma": 0.5,
+      "note": "Root intrusion in the under-floor perimeter void, 6.5 m along the arc. sourceStrength is deliberately 0: an obstruction is geometry, not a heat or moisture source, so it must contribute nothing to the ground fields. It still enters the air field as a blocked_vent, which is why it is placed far from any ground vent port - see spec 11.25."
+    },
+    {
+      "id": "ob-02",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [1.60, 0.0, -3.70],
+      "halfExtents": [0.2, 0.07, 0.2],
+      "severity": 0.75,
+      "expectedDetector": "constrained.obstruction",
+      "conduit": { "conduitId": "void-perimeter", "arc": 17.0 },
+      "sourceStrength": 0.0,
+      "sourceSigma": 0.5,
+      "note": "Collapsed joint, 17.0 m along the void. Unreachable from the utility-room entry in a single lap at 0.09 m/s, which is a coverage limit rather than a detector limit."
+    },
+    {
+      "id": "ob-03",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [3.40, 0.4, -3.00],
+      "halfExtents": [0.1, 0.02, 0.1],
+      "severity": 0.9,
+      "expectedDetector": "constrained.obstruction",
+      "conduit": { "conduitId": "waste-sink", "arc": 1.5 },
+      "sourceStrength": 0.0,
+      "sourceSigma": 0.4,
+      "note": "The 40 mm irreversible case: the only way to see this is to commit to the whole traverse. halfExtents are 0.10 m - the defect fills the bore, which is what makes it detectable by depth alone and unconfirmable by anything standing in the room."
+    },
+
+    {
+      "id": "ch-01",
+      "class": "clutter_hazard",
+      "manifold": "ground",
+      "position": [-3.2, 0.25, -0.9],
+      "halfExtents": [0.4, 0.25, 0.3],
+      "severity": 0.5,
+      "expectedDetector": "geometry.clutter",
+      "sourceStrength": 0,
+      "sourceSigma": 0.3
+    },
+    {
+      "id": "ch-02",
+      "class": "clutter_hazard",
+      "manifold": "ground",
+      "position": [4.4, 0.25, -2.0],
+      "halfExtents": [0.45, 0.25, 0.4],
+      "severity": 0.55,
+      "expectedDetector": "geometry.clutter",
+      "sourceStrength": 0,
+      "sourceSigma": 0.3
+    },
+    {
+      "id": "ch-03",
+      "class": "clutter_hazard",
+      "manifold": "ground",
+      "position": [4.4, 0.25, 2.0],
+      "halfExtents": [0.4, 0.25, 0.35],
+      "severity": 0.45,
+      "expectedDetector": "geometry.clutter",
+      "sourceStrength": 0,
+      "sourceSigma": 0.3
+    },
+    {
+      "id": "ch-04",
+      "class": "clutter_hazard",
+      "manifold": "ground",
+      "position": [-5.0, 0.25, -2.2],
+      "halfExtents": [0.4, 0.25, 0.4],
+      "severity": 0.5,
+      "expectedDetector": "geometry.clutter",
+      "sourceStrength": 0,
+      "sourceSigma": 0.3
+    },
+
+    {
+      "id": "pi-01",
+      "class": "pest_indicator",
+      "manifold": "ground",
+      "position": [5.3, 0.25, -2.05],
+      "halfExtents": [0.3, 0.25, 0.3],
+      "severity": 0.6,
+      "expectedDetector": "geometry.pest_proxy",
+      "sourceStrength": 2.5,
+      "sourceSigma": 0.45,
+      "sign": 1
+    },
+    {
+      "id": "pi-02",
+      "class": "pest_indicator",
+      "manifold": "constrained",
+      "position": [-4.0, 0.0, 0.0],
+      "halfExtents": [0.8, 0.2, 0.2],
+      "severity": 0.7,
+      "expectedDetector": "geometry.pest_proxy",
+      "sourceStrength": 3.0,
+      "sourceSigma": 0.5,
+      "sign": 1
+    }
+  ]
+}

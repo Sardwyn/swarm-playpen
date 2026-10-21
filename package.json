@@ -1,0 +1,37 @@
+{
+  "name": "swarm-playpen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Swarm Inspection Playpen: a deterministic headless simulation of a three-agent indoor inspection swarm, plus a Three.js viewer that reads sim frames and writes nothing.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "scenario": "vite-node scripts/scenario.ts",
+    "diag:map": "vite-node scripts/diag-map.ts",
+    "diag:detect": "vite-node scripts/diag-detect.ts",
+    "diag:market": "vite-node scripts/diag-market.ts",
+    "diag:parity": "vite-node scripts/diag-parity.ts",
+    "diag:math": "vite-node scripts/diag-math.ts",
+    "diag:lumen": "vite-node scripts/diag-lumen.ts",
+    "diag:inchworm": "vite-node scripts/diag-inchworm.ts",
+    "diag:handoff": "vite-node scripts/diag-handoff.ts",
+    "diag:regret": "vite-node scripts/diag-regret.ts",
+    "diag:s9": "vite-node scripts/diag-s9.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vite-node": "^2.1.8",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  }
+}

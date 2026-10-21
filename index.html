@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Swarm Inspection Playpen</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --line: #30363d;
+        --text: #c9d1d9;
+        --dim: #8b949e;
+        --ok: #68d391;
+        --warn: #ed8936;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      #app { display: flex; height: 100%; }
+      #stage { flex: 1 1 auto; position: relative; outline: none; }
+      #side {
+        flex: 0 0 430px;
+        overflow-y: auto;
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+        padding: 12px 14px;
+      }
+      #status {
+        position: absolute;
+        left: 12px;
+        top: 10px;
+        padding: 4px 10px;
+        background: rgba(13, 17, 23, 0.82);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--dim);
+        pointer-events: none;
+      }
+      h2 { font-size: 14px; margin: 0 0 2px; }
+      h3 { font-size: 12px; margin: 16px 0 4px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+      p.sub { color: var(--dim); margin: 0 0 6px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { text-align: left; color: var(--dim); font-weight: 500; padding: 2px 4px; }
+      td { padding: 2px 4px; vertical-align: top; }
+      td.det { color: var(--dim); font-size: 11px; }
+      tr.ok td:first-child { color: var(--ok); }
+      tr.warn td:first-child { color: var(--warn); }
+      tr.muted td { color: var(--dim); }
+      tr[data-id] { cursor: pointer; }
+      tr[data-id]:hover { background: #1f2630; }
+      .toggles label { display: inline-block; margin-right: 10px; }
+      .rerun label { display: inline-block; margin-right: 8px; }
+      input[type="number"] { width: 70px; background: #0d1117; color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 2px 4px; }
+      button { background: #1f6feb; color: #fff; border: 0; border-radius: 3px; padding: 3px 12px; cursor: pointer; }
+      .warn { color: var(--warn); }
+      .ok { color: var(--ok); }
+      ul { margin: 4px 0; padding-left: 18px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage" tabindex="0"><div id="status">loading…</div></div>
+      <div id="side"></div>
+    </div>
+    <script type="module" src="/src/view/main.ts"></script>
+  </body>
+</html>

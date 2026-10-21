@@ -1,0 +1,6 @@
+﻿node_modules/
+dist/
+*.local
+.DS_Store
+.vscode/
+scripts/.s9-cache.json

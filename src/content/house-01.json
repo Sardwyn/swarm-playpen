@@ -1,0 +1,191 @@
+{
+  "id": "house-01",
+  "name": "House 01 — inspection test bed",
+  "bounds": { "minX": -6.0, "minY": 0.0, "minZ": -4.0, "maxX": 6.0, "maxY": 3.5, "maxZ": 4.0 },
+  "rooms": [
+    { "id": "bath", "name": "Bathroom", "aabb": { "minX": -6, "minY": 0, "minZ": -4, "maxX": -2.2, "maxY": 2.5, "maxZ": -1.5 } },
+    { "id": "hall", "name": "Hall", "aabb": { "minX": -6, "minY": 0, "minZ": -1.5, "maxX": -2.2, "maxY": 2.5, "maxZ": 1.5 } },
+    { "id": "living", "name": "Living room", "aabb": { "minX": -2, "minY": 0, "minZ": -1.5, "maxX": 2, "maxY": 2.5, "maxZ": 1.5 } },
+    { "id": "kitchen", "name": "Kitchen", "aabb": { "minX": 2.2, "minY": 0, "minZ": -4, "maxX": 6, "maxY": 2.5, "maxZ": 1.5 } },
+    { "id": "corridor", "name": "Corridor", "aabb": { "minX": -2, "minY": 0, "minZ": 1.7, "maxX": 2, "maxY": 2.5, "maxZ": 4 } },
+    { "id": "utility", "name": "Utility", "aabb": { "minX": 2.2, "minY": 0, "minZ": 1.7, "maxX": 6, "maxY": 2.5, "maxZ": 4 } },
+    { "id": "attic", "name": "Attic", "aabb": { "minX": -6, "minY": 2.6, "minZ": -4, "maxX": 6, "maxY": 3.5, "maxZ": 4 } }
+  ],
+  "obstacles": [
+    { "id": "wall-ext-n", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -6, "minY": 0, "minZ": -4, "maxX": 6, "maxY": 3.5, "maxZ": -3.85 } },
+    { "id": "wall-ext-s", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -6, "minY": 0, "minZ": 3.85, "maxX": 6, "maxY": 3.5, "maxZ": 4 } },
+    { "id": "wall-ext-w", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -6, "minY": 0, "minZ": -4, "maxX": -5.85, "maxY": 3.5, "maxZ": 4 } },
+    { "id": "wall-ext-e", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 5.85, "minY": 0, "minZ": -4, "maxX": 6, "maxY": 3.5, "maxZ": 4 } },
+
+    { "id": "wall-w-bath-a", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -2.2, "minY": 0, "minZ": -4, "maxX": -2, "maxY": 2.5, "maxZ": -3 } },
+    { "id": "wall-w-bath-b", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -2.2, "minY": 0, "minZ": -2, "maxX": -2, "maxY": 2.5, "maxZ": -0.6 } },
+    { "id": "wall-w-hall", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -2.2, "minY": 0, "minZ": 0.6, "maxX": -2, "maxY": 2.5, "maxZ": 1.5 } },
+
+    { "id": "wall-bath-hall", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -6, "minY": 0, "minZ": -1.5, "maxX": -2.2, "maxY": 2.5, "maxZ": -1.35 } },
+
+    { "id": "wall-living-corridor-a", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": -2, "minY": 0, "minZ": 1.5, "maxX": 0.8, "maxY": 2.5, "maxZ": 1.65 } },
+    { "id": "wall-living-corridor-b", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 1.8, "minY": 0, "minZ": 1.5, "maxX": 6, "maxY": 2.5, "maxZ": 1.65 } },
+
+    { "id": "wall-living-kitchen-a", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 2, "minY": 0, "minZ": -4, "maxX": 2.15, "maxY": 2.5, "maxZ": -0.4 } },
+    { "id": "wall-living-kitchen-b", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 2, "minY": 0, "minZ": 0.6, "maxX": 2.15, "maxY": 2.5, "maxZ": 1.65 } },
+
+    { "id": "wall-corridor-utility-a", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 2, "minY": 0, "minZ": 1.65, "maxX": 2.15, "maxY": 2.5, "maxZ": 2.9 } },
+    { "id": "wall-corridor-utility-b", "manifold": "ground", "blocking": true, "material": "plaster", "aabb": { "minX": 2, "minY": 0, "minZ": 3.7, "maxX": 2.15, "maxY": 2.5, "maxZ": 4 } },
+
+    { "id": "ceiling-a", "manifold": "volumetric", "blocking": true, "material": "plaster", "aabb": { "minX": -6, "minY": 2.5, "minZ": -4, "maxX": -3.4, "maxY": 2.6, "maxZ": 4 } },
+    { "id": "ceiling-b", "manifold": "volumetric", "blocking": true, "material": "plaster", "aabb": { "minX": -2.4, "minY": 2.5, "minZ": -4, "maxX": 6, "maxY": 2.6, "maxZ": 4 } },
+    { "id": "ceiling-c", "manifold": "volumetric", "blocking": true, "material": "plaster", "aabb": { "minX": -3.4, "minY": 2.5, "minZ": -4, "maxX": -2.4, "maxY": 2.6, "maxZ": -0.5 } },
+    { "id": "ceiling-d", "manifold": "volumetric", "blocking": true, "material": "plaster", "aabb": { "minX": -3.4, "minY": 2.5, "minZ": 0.5, "maxX": -2.4, "maxY": 2.6, "maxZ": 4 } },    { "id": "sofa", "manifold": "ground", "blocking": true, "material": "fabric", "aabb": { "minX": -1.6, "minY": 0, "minZ": 0.9, "maxX": 0.2, "maxY": 0.8, "maxZ": 1.45 } },
+    { "id": "shelf-low", "manifold": "ground", "blocking": true, "material": "timber", "aabb": { "minX": -1.8, "minY": 0, "minZ": -1.2, "maxX": -1, "maxY": 0.1, "maxZ": -0.4 } },
+    { "id": "kitchen-units", "manifold": "ground", "blocking": true, "material": "worktop", "aabb": { "minX": 4.4, "minY": 0, "minZ": -3.6, "maxX": 5.8, "maxY": 0.9, "maxZ": -2.4 } },
+    { "id": "fridge", "manifold": "ground", "blocking": true, "material": "appliance", "aabb": { "minX": 5, "minY": 0, "minZ": -1.2, "maxX": 5.8, "maxY": 1.8, "maxZ": -0.3 } },
+    { "id": "washer", "manifold": "ground", "blocking": true, "material": "appliance", "aabb": { "minX": 3.2, "minY": 0, "minZ": 3.2, "maxX": 4, "maxY": 0.85, "maxZ": 4 } },
+    { "id": "boiler", "manifold": "ground", "blocking": true, "material": "appliance", "aabb": { "minX": 4.6, "minY": 0, "minZ": 2, "maxX": 5.8, "maxY": 1.6, "maxZ": 2.9 } },
+    { "id": "bath-vanity", "manifold": "ground", "blocking": true, "material": "ceramic", "aabb": { "minX": -5.8, "minY": 0, "minZ": -3.9, "maxX": -4.8, "maxY": 0.85, "maxZ": -3.2 } },
+    { "id": "clutter-hall", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -3.6, "minY": 0, "minZ": -1.2, "maxX": -2.8, "maxY": 0.5, "maxZ": -0.6 } },
+    { "id": "clutter-kitchen", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": 3.7, "minY": 0, "minZ": -2.45, "maxX": 4.7, "maxY": 0.5, "maxZ": -1.55 } },
+    { "id": "clutter-utility", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": 3.9, "minY": 0, "minZ": 1.55, "maxX": 4.8, "maxY": 0.5, "maxZ": 2.45 } },
+    { "id": "clutter-bath", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -5.5, "minY": 0, "minZ": -2.7, "maxX": -4.5, "maxY": 0.5, "maxZ": -1.7 } },
+    { "id": "curtain-living", "manifold": "ground", "blocking": false, "material": "soft-furnishing", "aabb": { "minX": -1.9, "minY": 0, "minZ": -1.45, "maxX": -0.6, "maxY": 0.4, "maxZ": -1.3 } }
+  ],
+  "doors": [
+    { "id": "door-bath", "x": -2.1, "z": -2.5, "width": 1.0, "between": ["bath", "hall"] },
+    { "id": "door-living", "x": -2.1, "z": 0.0, "width": 1.2, "between": ["hall", "living"] },
+    { "id": "door-corridor", "x": 1.3, "z": 1.57, "width": 1.0, "between": ["living", "corridor"] },
+    { "id": "door-kitchen", "x": 2.07, "z": 0.1, "width": 1.0, "between": ["living", "kitchen"] },
+    { "id": "door-utility", "x": 2.07, "z": 3.3, "width": 0.8, "between": ["corridor", "utility"] }
+  ],
+  "conduits": [
+    {
+      "id": "flue-boiler",
+      "name": "Boiler flue",
+      "bore": 0.075,
+      "startPort": "flue-base",
+      "endPort": "vent-kitchen-wall",
+      "points": [
+        [5.0, 0.2, 2.9],
+        [5.0, 1.0, 2.9],
+        [5.0, 1.7, 2.9],
+        [4.6, 1.9, 2.7],
+        [4.2, 2.05, 2.4],
+        [4.0, 2.2, -1.6]
+      ],
+      "features": [
+        { "arc": 1.5, "kind": "elbow-1" },
+        { "arc": 2.0, "kind": "elbow-2" },
+        { "arc": 3.2, "kind": "termination" }
+      ]
+    },
+    {
+      "id": "waste-sink",
+      "name": "Under-sink waste run",
+      "bore": 0.02,
+      "startPort": "sink-tail",
+      "points": [
+        [4.6, 0.5, -2.6],
+        [4.0, 0.45, -2.9],
+        [3.4, 0.4, -3.0],
+        [2.8, 0.35, -3.2]
+      ],
+      "features": [
+        { "arc": 0.6, "kind": "tee" },
+        { "arc": 1.8, "kind": "termination" }
+      ]
+    },
+    {
+      "id": "extract-kitchen",
+      "name": "Kitchen extract duct",
+      "bore": 0.12,
+      "startPort": "vent-kitchen-wall",
+      "endPort": "extract-kitchen-end",
+      "points": [
+        [4.0, 2.2, -1.6],
+        [3.9, 2.25, -2.2],
+        [3.7, 2.2, -2.8],
+        [3.4, 2.0, -3.2],
+        [3.1, 0.6, -3.35],
+        [3.1, 0.3, -3.4]
+      ],
+      "features": [
+        { "arc": 0.9, "kind": "branch-1" },
+        { "arc": 1.6, "kind": "branch-2" },
+        { "arc": 2.4, "kind": "drop" }
+      ]
+    },
+    {
+      "id": "extract-bath",
+      "name": "Bathroom extract duct",
+      "bore": 0.06,
+      "startPort": "vent-bath-ceiling",
+      "endPort": "extract-bath-end",
+      "points": [
+        [-4.0, 2.4, -2.5],
+        [-4.0, 2.0, -2.7],
+        [-4.0, 1.2, -3.0],
+        [-4.0, 0.6, -3.2],
+        [-4.0, 0.3, -3.3]
+      ],
+      "features": [{ "arc": 1.2, "kind": "elbow" }]
+    },
+    {
+      "id": "void-perimeter",
+      "name": "Under-floor perimeter void",
+      "bore": 0.07,
+      "startPort": "duct-drop-utility",
+      "endPort": "duct-drop-utility",
+      "points": [
+        [3.4, 0.0, 3.6],
+        [1.0, 0.0, 3.7],
+        [-1.5, 0.0, 3.7],
+        [-3.5, 0.0, 3.4],
+        [-5.0, 0.0, 1.5],
+        [-5.0, 0.0, -2.0],
+        [-3.0, 0.0, -3.4],
+        [-0.5, 0.0, -3.7],
+        [1.5, 0.0, -3.7],
+        [3.0, 0.0, -3.2],
+        [3.6, 0.0, -1.0],
+        [3.9, 0.0, 1.0],
+        [3.4, 0.0, 3.6]
+      ],
+      "features": [
+        { "arc": 3.0, "kind": "corner-1" },
+        { "arc": 8.4, "kind": "corner-2" },
+        { "arc": 13.5, "kind": "corner-3" }
+      ]
+    },
+    {
+      "id": "cavity-kitchen",
+      "name": "Kitchen wall cavity",
+      "bore": 0.045,
+      "startPort": "cavity-entry",
+      "endPort": "cavity-entry",
+      "points": [
+        [-1.9, 1.2, -1.0],
+        [-0.6, 1.25, -1.15],
+        [0.8, 1.3, -1.25],
+        [2.0, 1.3, -1.3],
+        [1.9, 1.25, -1.05],
+        [0.4, 1.2, -0.95],
+        [-1.9, 1.2, -1.0]
+      ],
+      "features": [{ "arc": 1.6, "kind": "nook" }]
+    }
+  ],
+  "ports": [
+    { "id": "vent-bath-ceiling", "a": "volumetric", "b": "constrained", "position": [-4.0, 2.4, -2.5], "radius": 0.125 },
+    { "id": "vent-kitchen-wall", "a": "volumetric", "b": "constrained", "position": [4.0, 2.3, -2.0], "radius": 0.2 },
+    { "id": "hatch-attic-stair", "a": "volumetric", "b": "volumetric", "position": [-2.9, 2.55, 0.0], "radius": 0.45, "kind": "hatch" },
+    { "id": "appliance-front-boiler", "a": "ground", "b": "ground", "position": [4.0, 0.0, 2.4], "radius": 0.35 },
+    { "id": "duct-drop-utility", "a": "constrained", "b": "ground", "position": [3.4, 0.0, 3.6], "radius": 0.2 },
+    { "id": "sink-tail", "a": "constrained", "b": "ground", "position": [4.6, 0.5, -2.6], "radius": 0.02, "kind": "conduit_entry" },
+    { "id": "cavity-entry", "a": "constrained", "b": "ground", "position": [-1.9, 1.2, -1.0], "radius": 0.045, "kind": "conduit_entry" },
+    { "id": "flue-base", "a": "constrained", "b": "ground", "position": [5.0, 0.2, 2.9], "radius": 0.075, "kind": "conduit_entry" },
+    { "id": "extract-kitchen-end", "a": "constrained", "b": "ground", "position": [3.1, 0.3, -3.4], "radius": 0.12, "kind": "conduit_entry" },
+    { "id": "extract-bath-end", "a": "constrained", "b": "ground", "position": [-4.0, 0.3, -3.3], "radius": 0.06, "kind": "conduit_entry" }
+  ],
+  "docks": [
+    { "id": "appliance-front-boiler", "a": "ground", "b": "ground", "position": [4.0, 0.0, 2.4], "radius": 0.35 }
+  ],
+  "spawn": { "x": -4.5, "z": 0.0, "theta": 0.0 }
+}
