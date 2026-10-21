@@ -1,0 +1,129 @@
+{
+  "id": "yacht-sim-01",
+  "name": "Sunseeker Predator 55 — engine room, deckhead void and forward stringer void",
+
+  "_note": "A second domain for the same engine. The schema is the house's: rooms, obstacles, ports, conduits, docks, spawn. Nothing in src/sim/ changed to accept this file except one optional parameter on createRun, and the oracle is a separate file exactly as it is for the house.",
+
+  "_manifoldMapping": "The sim has one ground plane, one set of conduits, and one volume above the ground plane. On a midships section those become: GROUND = the engine room sole. CONSTRAINED = the engine room's pipe runs. VOLUMETRIC = the space above the engine room sole, which holds the deckhead void over the engine, the cockpit airspace, and the forward stringer void.",
+
+  "_whyTheStringerVoidIsSpecial": "It is the largest volume on the boat and it is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. So the volume is unreachable, and the fault in it is the most severe one on the vessel. That is not authored — it is what the geometry does.",
+
+  "bounds": { "minX": -8.57, "minY": -1.75, "maxX": 8.57, "maxY": 2.45, "minZ": -2.465, "maxZ": 2.465 },
+
+  "rooms": [
+    {
+      "id": "engine-room",
+      "name": "Engine room",
+      "aabb": { "minX": -8.1, "minY": 0, "minZ": -1.6, "maxX": -2.4, "maxY": 0.85, "maxZ": 1.6 }
+    }
+  ],
+
+  "obstacles": [
+    { "id": "hull-aft", "manifold": "ground", "blocking": true, "material": "plating", "aabb": { "minX": -8.25, "minY": 0, "minZ": -1.75, "maxX": -8.1, "maxY": 0.85, "maxZ": 1.75 } },
+    { "id": "hull-fwd", "manifold": "ground", "blocking": true, "material": "plating", "aabb": { "minX": -2.4, "minY": 0, "minZ": -1.75, "maxX": -2.25, "maxY": 0.85, "maxZ": 1.75 } },
+    { "id": "hull-port", "manifold": "ground", "blocking": true, "material": "plating", "aabb": { "minX": -8.25, "minY": 0, "minZ": -1.75, "maxX": -2.25, "maxY": 0.85, "maxZ": -1.6 } },
+    { "id": "hull-stbd", "manifold": "ground", "blocking": true, "material": "plating", "aabb": { "minX": -8.25, "minY": 0, "minZ": 1.6, "maxX": -2.25, "maxY": 0.85, "maxZ": 1.75 } },
+
+    { "id": "engine-port", "manifold": "ground", "blocking": true, "material": "machinery", "aabb": { "minX": -7.3, "minY": 0, "minZ": -1.15, "maxX": -5.7, "maxY": 0.55, "maxZ": -0.08 } },
+    { "id": "engine-stbd", "manifold": "ground", "blocking": true, "material": "machinery", "aabb": { "minX": -7.3, "minY": 0, "minZ": 0.08, "maxX": -5.7, "maxY": 0.55, "maxZ": 1.15 } },
+    { "id": "engine-bed", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -7.3, "minY": 0, "minZ": -0.08, "maxX": -5.7, "maxY": 0.28, "maxZ": 0.08 } },
+    { "id": "fuel-tank", "manifold": "ground", "blocking": true, "material": "tank", "aabb": { "minX": -8.05, "minY": 0, "minZ": -0.55, "maxX": -7.45, "maxY": 0.5, "maxZ": 0.55 } },
+    { "id": "exhaust-header", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -5.45, "minY": 0.15, "minZ": 0.25, "maxX": -4.85, "maxY": 0.6, "maxZ": 0.6 } },
+    { "id": "coolant-tank", "manifold": "ground", "blocking": true, "material": "tank", "aabb": { "minX": -4.7, "minY": 0, "minZ": -0.9, "maxX": -4.0, "maxY": 0.45, "maxZ": -0.2 } },
+    { "id": "gearbox", "manifold": "ground", "blocking": true, "material": "machinery", "aabb": { "minX": -5.7, "minY": 0, "minZ": -0.5, "maxX": -4.9, "maxY": 0.5, "maxZ": 0.5 } },
+    { "id": "stowage-loose", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -4.6, "minY": 0.0, "minZ": -0.85, "maxX": -4.1, "maxY": 0.4, "maxZ": -0.25 } },
+    { "id": "shaft-bracket-port", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -4.9, "minY": 0, "minZ": -1.0, "maxX": -4.6, "maxY": 0.35, "maxZ": -0.6 } },
+    { "id": "shaft-bracket-stbd", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -4.9, "minY": 0, "minZ": 0.6, "maxX": -4.6, "maxY": 0.35, "maxZ": 1.0 } },
+
+    { "id": "engine-deckhead-a", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": -8.25, "minY": 0.85, "minZ": -1.75, "maxX": -2.4, "maxY": 0.95, "maxZ": -0.2 } },
+    { "id": "engine-deckhead-b", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": -8.25, "minY": 0.85, "minZ": 0.2, "maxX": -2.4, "maxY": 0.95, "maxZ": 1.75 } },
+
+    { "id": "main-deck-engine", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": -8.57, "minY": 1.36, "minZ": -2.465, "maxX": -2.4, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "main-deck-cockpit", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": -2.4, "minY": 1.36, "minZ": -2.465, "maxX": 1.2, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "main-deck-fwd-a", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 1.2, "minY": 1.36, "minZ": -2.465, "maxX": 2.8, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "main-deck-fwd-b", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 3.2, "minY": 1.36, "minZ": -2.465, "maxX": 5.7, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "main-deck-fwd-c", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 6.1, "minY": 1.36, "minZ": -2.465, "maxX": 8.57, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "deck-hatch1-port", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 2.8, "minY": 1.36, "minZ": -2.465, "maxX": 3.2, "maxY": 1.46, "maxZ": 0.55 } },
+    { "id": "deck-hatch1-stbd", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 2.8, "minY": 1.36, "minZ": 0.75, "maxX": 3.2, "maxY": 1.46, "maxZ": 2.465 } },
+    { "id": "deck-hatch2-port", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 5.7, "minY": 1.36, "minZ": -2.465, "maxX": 6.1, "maxY": 1.46, "maxZ": 0.55 } },
+    { "id": "deck-hatch2-stbd", "manifold": "volumetric", "blocking": true, "material": "deck", "aabb": { "minX": 5.7, "minY": 1.36, "minZ": 0.75, "maxX": 6.1, "maxY": 1.46, "maxZ": 2.465 } },
+
+    { "id": "stringer-aft-bulkhead", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": 1.2, "minY": -0.5, "minZ": 0.3, "maxX": 1.35, "maxY": 1.36, "maxZ": 1.0 } },
+    { "id": "stringer-fwd-bulkhead", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": 6.5, "minY": -0.5, "minZ": 0.3, "maxX": 6.65, "maxY": 1.36, "maxZ": 1.0 } },
+    { "id": "stringer-outboard", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": 1.2, "minY": -0.5, "minZ": 1.0, "maxX": 6.65, "maxY": 1.36, "maxZ": 2.465 } },
+    { "id": "stringer-inboard", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": 1.2, "minY": -0.5, "minZ": -2.465, "maxX": 6.65, "maxY": 1.36, "maxZ": 0.3 } },
+    { "id": "hull-bottom-fwd", "manifold": "volumetric", "blocking": true, "material": "plating", "aabb": { "minX": 1.2, "minY": -1.75, "minZ": -2.465, "maxX": 6.65, "maxY": -0.5, "maxZ": 2.465 } }
+  ],
+
+  "ports": [
+    { "id": "port-fuel-a", "a": "ground", "b": "constrained", "position": [-7.45, 0.05, 0.0], "radius": 0.05, "kind": "conduit_entry" },
+    { "id": "port-fuel-b", "a": "ground", "b": "constrained", "position": [-5.75, 0.05, 0.0], "radius": 0.05, "kind": "conduit_entry" },
+    { "id": "port-coolant-a", "a": "ground", "b": "constrained", "position": [-4.6, 0.3, -0.55], "radius": 0.06, "kind": "conduit_entry" },
+    { "id": "port-coolant-b", "a": "ground", "b": "constrained", "position": [-5.6, 0.3, -0.55], "radius": 0.06, "kind": "conduit_entry" },
+    { "id": "port-exhaust-a", "a": "ground", "b": "constrained", "position": [-5.15, 0.45, 0.42], "radius": 0.09, "kind": "conduit_entry" },
+    { "id": "port-exhaust-b", "a": "ground", "b": "constrained", "position": [-6.4, 0.45, 0.42], "radius": 0.09, "kind": "conduit_entry" },
+    { "id": "port-vent-engine", "a": "ground", "b": "volumetric", "position": [-6.2, 0.5, 1.35], "radius": 0.12, "kind": "vent" },
+
+    { "id": "hatch-deck-1", "a": "volumetric", "b": "volumetric", "position": [3.0, 1.41, 0.65], "radius": 0.1, "kind": "hatch" },
+    { "id": "hatch-deck-2", "a": "volumetric", "b": "volumetric", "position": [5.9, 1.41, 0.65], "radius": 0.1, "kind": "hatch" },
+    { "id": "hatch-engine-bay", "a": "volumetric", "b": "volumetric", "position": [-2.4, 0.9, 0.0], "radius": 0.2, "kind": "hatch" },
+
+    { "id": "dock-crawler", "a": "ground", "b": "ground", "position": [-3.0, 0.0, 0.0], "radius": 0.2 }
+  ],
+
+  "conduits": [
+    {
+      "id": "fuel-line",
+      "name": "Fuel line, tank to engines",
+      "bore": 0.05,
+      "startPort": "port-fuel-a",
+      "endPort": "port-fuel-b",
+      "points": [
+        [-7.45, 0.05, 0.0],
+        [-7.0, 0.05, 0.0],
+        [-6.4, 0.05, 0.0],
+        [-5.75, 0.05, 0.0]
+      ],
+      "features": [{ "arc": 0.9, "kind": "elbow" }, { "arc": 1.7, "kind": "termination" }]
+    },
+    {
+      "id": "coolant-run",
+      "name": "Coolant run, header to engines",
+      "bore": 0.06,
+      "startPort": "port-coolant-a",
+      "endPort": "port-coolant-b",
+      "points": [
+        [-4.6, 0.3, -0.55],
+        [-5.0, 0.3, -0.55],
+        [-5.6, 0.3, -0.55]
+      ],
+      "features": [{ "arc": 0.5, "kind": "tee" }]
+    },
+    {
+      "id": "exhaust-run",
+      "name": "Exhaust run to header",
+      "bore": 0.09,
+      "startPort": "port-exhaust-a",
+      "endPort": "port-exhaust-b",
+      "points": [
+        [-5.15, 0.45, 0.42],
+        [-5.6, 0.45, 0.42],
+        [-6.4, 0.45, 0.42]
+      ],
+      "features": [{ "arc": 0.8, "kind": "termination" }]
+    }
+  ],
+
+  "docks": [
+    { "id": "dock-crawler", "a": "ground", "b": "ground", "position": [-3.0, 0.0, 0.0], "radius": 0.2 }
+  ],
+
+  "spawn": { "x": -3.4, "z": 0.0, "theta": 0.0 },
+
+  "_assumptions": [
+    "Principal characteristics are Sunseeker's published figures for the Predator 55. Every profile, bulkhead, deck height, hatch size and pipe route is ASSUMED.",
+    "The two deck hatches are 200 mm clear. That single number decides whether the stringer void is reachable, and it is question A2 for the marine engineer.",
+    "The engine bay access hatch is 400 mm clear, which the hover bot can pass and the ground bot cannot.",
+    "The stringer void is 700 mm wide between the stringers, which is wider than the 500 mm the inchworm can crawl in a conduit. It is a space, not a pipe, and the model has no way to say so — which is itself the finding."
+  ]
+}

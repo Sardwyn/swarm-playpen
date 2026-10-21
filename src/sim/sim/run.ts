@@ -381,6 +381,20 @@ export function createRun(
   house: House,
   config: SimConfig,
   spawn: { x: number; z: number; theta: number },
+  /**
+   * The oracle for this run.
+   *
+   * Defaults to the house's authored set, which is the Stage A–F reference
+   * configuration. It is a parameter because the engine is not about houses: a
+   * second domain — the yacht — has to be able to say "these are the faults, in
+   * this space", and the oracle has to be swappable for that to be a run rather
+   * than a fork.
+   *
+   * The separation it enforces is unchanged and is the whole point: the answer key
+   * is unreachable from the code doing the guessing, whether the guessing is about
+   * a house or a boat.
+   */
+  truth: AnomalySet = loadAnomalies01(),
 ): SimRun {
   const grid = buildGroundGrid(house)
   const mask = groundPassability(grid)
@@ -434,7 +448,6 @@ export function createRun(
     },
   })
 
-  const truth = loadAnomalies01()
   const fields = buildFields(house.bounds, truth)
 
   const sensors = new Map<string, ScalarSensorState>()

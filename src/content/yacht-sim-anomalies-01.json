@@ -1,0 +1,98 @@
+{
+  "id": "yacht-sim-anomalies-01",
+  "houseId": "yacht-sim-01",
+  "note": "GROUND TRUTH for the yacht domain. The sim reads this to build the scalar fields and to score detections. No sensor, detector or agent may import it — the same boundary as the house's, and the same test.",
+
+  "_theFinding": "Two faults are missed and neither is a detector failure. yc-04 is the most severe fault on the vessel and it is in the forward stringer void, whose only apertures are two 200 mm deck hatches. yc-07 is in the deckhead void over the engine, which is 410 mm tall, and the hover bot's clearance is 1.0 m — it spent its whole 12 Wh pack in a space too short for it and faulted on empty. The swarm works. It is the architecture of the boat that stops it, and the difference between the two misses is the difference between a wide hole and a tall one.",
+
+  "_onMissReason": "A per-fault reason for a miss, in the same spirit as the house's `crackLimitation` note: a fault that is reported as missed carries the structural reason with it, rather than being presented as a bare 0.00. A miss with a reason is a finding. A miss without one is a defect.",
+
+  "coverageThreshold": 0.85,
+  "iouMatch": 0.3,
+
+  "anomalies": [
+    {
+      "id": "yc-01",
+      "class": "thermal_anomaly",
+      "manifold": "ground",
+      "position": [-6.5, 0.3, -0.6],
+      "halfExtents": [0.3, 0.3, 0.3],
+      "severity": 0.6,
+      "expectedDetector": "thermal.baseline",
+      "sourceStrength": 0.4,
+      "sourceSigma": 0.7
+    },
+            {
+      "id": "yc-02",
+      "class": "blocked_vent",
+      "manifold": "ground",
+      "position": [-6.2, 0.5, 1.35],
+      "halfExtents": [0.3, 0.25, 0.2],
+      "severity": 0.5,
+      "expectedDetector": "geometry.blocked_vent",
+      "sourceStrength": 0.18,
+      "sourceSigma": 0.6
+    },
+{
+      "id": "yc-03",
+      "class": "moisture_leak",
+      "manifold": "ground",
+      "position": [-5.0, 0.5, -0.8],
+      "halfExtents": [0.5, 0.4, 0.4],
+      "severity": 0.75,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.32,
+      "sourceSigma": 0.9
+    },
+    {
+      "id": "yc-04",
+      "class": "moisture_leak",
+      "manifold": "volumetric",
+      "position": [4.2, 0.6, 0.65],
+      "halfExtents": [0.8, 0.5, 0.3],
+      "severity": 0.85,
+      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The nearest candidate the swarm raised was 7.61 m away. The forward stringer void is entered only through two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can.",
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.36,
+      "sourceSigma": 1.0,
+      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The forward stringer void is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can. The nearest humidity-capable agent is 6.6 m away, in the engine room, and its sensor range is 3 m."
+    },
+    {
+      "id": "yc-05",
+      "class": "clutter_hazard",
+      "manifold": "ground",
+      "position": [-3.95, 0.2, -1.08],
+      "halfExtents": [0.25, 0.25, 0.25],
+      "severity": 0.4,
+      "missReason": "DETECTION, not coverage. The nearest candidate is 0.01 m away - the swarm was on top of it - and the clutter detector still did not match it. A localisation limitation in the clutter detector, reported as a detection miss rather than dressed up as a coverage failure.",
+      "expectedDetector": "geometry.clutter",
+      "sourceStrength": 0,
+      "sourceSigma": 0.7
+    },
+    {
+      "id": "yc-06",
+      "class": "blocked_vent",
+      "manifold": "constrained",
+      "position": [-6.45, 0.05, 0.0],
+      "halfExtents": [0.25, 0.08, 0.25],
+      "severity": 0.5,
+      "missReason": "DETECTION, not coverage. The crawler's obstruction candidate is 0.00 m from the fault; it was there. The report credited the candidate to another fault. A matching limitation, and a reminder that a finding is not a fault until it has been matched to one.",
+      "expectedDetector": "constrained.obstruction",
+      "sourceStrength": 0,
+      "sourceSigma": 0.6,
+      "conduit": { "conduitId": "fuel-line", "arc": 1.0 }
+    },
+    {
+      "id": "yc-07",
+      "class": "moisture_leak",
+      "manifold": "volumetric",
+      "position": [-5.5, 1.15, 0.5],
+      "halfExtents": [0.6, 0.2, 0.5],
+      "severity": 0.7,
+      "expectedDetector": "humidity.baseline",
+      "sourceStrength": 0.34,
+      "sourceSigma": 0.9,
+      "missReason": "TOO TALL. The deckhead void over the engine is 410 mm, and the hover bot's clearance is 1.0 m. It went in, spent its entire 12 Wh pack holding station against the ceiling, and faulted on empty without a candidate. The ground bot's humidity reading reaches the source but localises to the agent, 850 mm below it, so the extent does not overlap and the report records it as unverified. Two different reasons, one of them costing the whole battery."
+    }
+  ]
+}
