@@ -233,7 +233,7 @@ function showAt(index: number): void {
     lastFrameIndex = floor
     if (yacht !== null) yacht.setTrailPoints(frame)
   }
-  consoleUi.update(frame, take, floor, take.frames.length)
+  consoleUi.update(frame, take, floor, take.frames.length, buildVerdict(frame.findings, yachtTruth, manifoldAgents))
 
   // The caption: what the viewer is being shown, and what the machine is
   // actually doing at that moment.

@@ -27,11 +27,12 @@
 import type { SimFrame } from '../sim/report/frame.ts'
 import type { Take } from '../sim/report/take.ts'
 import type { SimEvent } from '../sim/types.ts'
+import type { Verdict } from '../sim/report/verdict.ts'
 import type { House } from '../sim/world/geometry.ts'
 
 export type ConsoleElements = {
   readonly root: HTMLElement
-  update(frame: SimFrame, take: Take, index: number, total: number): void
+  update(frame: SimFrame, take: Take, index: number, total: number, verdict: readonly Verdict[]): void
 }
 
 const AGENT_META: Record<string, { readonly label: string; readonly role: string; readonly colour: string }> = {
@@ -138,6 +139,10 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
           <h2>FINDINGS</h2>
           <ul id="c-findings"></ul>
         </section>
+        <section class="block">
+          <h2>NOT FOUND</h2>
+          <ul id="c-misses"></ul>
+        </section>
       </aside>
 
       <footer class="transport">
@@ -159,6 +164,7 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
   const missionEl = q('c-mission')
   const eventsEl = q<HTMLUListElement>('c-events')
   const findingsEl = q<HTMLUListElement>('c-findings')
+  const missesEl = q<HTMLUListElement>('c-misses')
   const minimap = q<HTMLCanvasElement>('c-minimap')
   const scrub = q<HTMLInputElement>('c-scrub')
   const timeline = q('c-timeline')
@@ -297,7 +303,13 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
     }
   }
 
-  function update(frame: SimFrame, take: Take, index: number, total: number): void {
+  function update(
+    frame: SimFrame,
+    take: Take,
+    index: number,
+    total: number,
+    verdict: readonly Verdict[],
+  ): void {
     q('c-clock').textContent = clock(frame.simSeconds)
     q('c-tick').textContent = String(frame.tick)
 
@@ -385,6 +397,27 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
                 `<span class="fdet">${f.detectorId}</span>` +
                 `<span class="fbar"><i style="width:${(f.confidence * 100).toFixed(0)}%"></i></span>` +
                 `<span class="fcf">${f.confidence.toFixed(2)}</span>` +
+                `</li>`,
+            )
+            .join('')
+
+    // -- what was NOT found, and why.
+    //
+    // The most important thing on the screen, and the thing a readout that only
+    // shows successes leaves out. A machine that reports what it found is a
+    // machine; a machine that also reports what it did not find, and why, is
+    // an instrument.
+    const missed = verdict.filter((v) => !v.found)
+    missesEl.innerHTML =
+      missed.length === 0
+        ? '<li class="empty">nothing outstanding</li>'
+        : missed
+            .map(
+              (v) =>
+                `<li class="${v.kind === 'ARCHITECTURE' ? 'arch' : 'det'}">` +
+                `<span class="mid">${v.id}</span>` +
+                `<span class="mcls">${v.cls}</span>` +
+                `<span class="mkind">${v.kind}</span>` +
                 `</li>`,
             )
             .join('')
