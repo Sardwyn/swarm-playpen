@@ -103,7 +103,7 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
           <div class="tstat"><b id="c-tick">0</b><i>ticks</i></div>
           <div class="tstat"><b id="c-coverage">—</b><i>engine room</i></div>
           <div class="tstat"><b id="c-found">—</b><i>faults found</i></div>
-          <div class="tstat alarm"><b id="c-miss">—</b><i>unreachable</i></div>
+          <div class="tstat alarm"><b id="c-miss">—</b><i>faults missed</i></div>
           <button id="c-report" class="tbtn">REPORT</button>
         </div>
       </header>

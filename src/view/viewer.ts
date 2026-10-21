@@ -491,7 +491,10 @@ export class OrbitShim {
       'wheel',
       (e) => {
         if (!this.enabled) return
-        this.distance = Math.max(3, Math.min(80, this.distance + e.deltaY * 0.02))
+        // The minimum is low because a shot may need to be a metre from an
+      // 80 mm crawler inside a 60 mm pipe. The old floor of 3 m silently
+      // pushed such a camera back and the shot stopped being the shot.
+      this.distance = Math.max(0.4, Math.min(80, this.distance + e.deltaY * 0.02))
         e.preventDefault()
       },
       { passive: false },

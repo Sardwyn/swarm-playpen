@@ -411,7 +411,12 @@ export function frameAt(take: Take, indexFloat: number): SimFrame {
       x: ag.x + (bg.x - ag.x) * f,
       y: ag.y + (bg.y - ag.y) * f,
       z: ag.z + (bg.z - ag.z) * f,
-      heading: ag.heading + angleDelta(ag.heading, bg.heading) * f,
+      // `angleDelta(a, b)` is `a - b`, so the change from the first frame to
+      // the second is `angleDelta(bg, ag)`. Passing them the other way round
+      // walks the heading the LONG way round the circle — and then the camera
+      // that follows it swings five point nine radians in one frame, which is
+      // exactly the judder this interpolation exists to remove.
+      heading: ag.heading + angleDelta(bg.heading, ag.heading) * f,
       battery: ag.battery + (bg.battery - ag.battery) * f,
     }
   })

@@ -383,7 +383,7 @@ function loop(now: number): void {
 
   if (cinematic && take !== undefined && orbit !== null && camera !== null) {
     const t = playhead / Math.max(1, take.frames.length - 1)
-    const state = director.at(t, frameAt(take, playhead))
+    const state = director.at(t, (x) => frameAt(take, x * (take.frames.length - 1)))
     orbit.target.set(state.targetX, state.targetY, state.targetZ)
     orbit.yaw = state.yaw
     orbit.pitch = state.pitch

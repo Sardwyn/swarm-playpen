@@ -123,11 +123,40 @@ export type FrameOptions = {
  * like a crawler that has not started yet.
  */
 function worldPositionOf(run: SimRun, agent: AgentState): { x: number; y: number; z: number; heading: number } {
+  // The crawler is a special case, and it was a bug.
+  //
+  // The agent's own pose for an inchworm is the SEED it was created with — an
+  // empty conduit id, because at the start it is standing at a port and has no
+  // metric position. The graph position it actually holds lives on the separate
+  // `InchwormState`. So projecting the agent's pose found no conduit, fell
+  // through to the port fallback, found no port either, and returned the
+  // origin: the crawler was drawn at (0, 0, 0) for the entire run, three
+  // hundred metres from the fuel line it was crawling.
+  //
+  // So the crawler's position is read from where it actually is.
+  if (agent.spec.cls === 'inchworm') {
+    const inch = run.inchworms.get(agent.spec.id)
+    const pose = inch?.pose
+    if (pose !== null && pose !== undefined) {
+      const geo = run.lumen.conduits.get(pose.conduitId)
+      if (geo !== undefined) {
+        const at = positionAt(geo, pose.arc)
+        return { x: at[0], y: at[1], z: at[2], heading: pose.roll }
+      }
+    }
+    // Standing at a port: report the port's own position, so the crawler is
+    // still visible and still where it is.
+    const portId = inch?.atPort ?? run.config.inchwormHomePort
+    const port = run.house.ports.find((p) => p.id === portId)
+    if (port !== undefined) {
+      return { x: port.position[0], y: port.position[1], z: port.position[2], heading: 0 }
+    }
+    return { x: 0, y: 0, z: 0, heading: 0 }
+  }
+
   if (isLumenPose(agent.pose)) {
     const geo = run.lumen.conduits.get(agent.pose.conduitId)
     if (geo === undefined) {
-      // Standing at a port: the conduit is not entered, so there is no arc to
-      // interpolate. Report the port's own position so the agent is still visible.
       const port = run.house.ports.find((p) => p.id === (run.inchworms.get(agent.spec.id)?.atPort ?? ''))
       if (port !== undefined) return { x: port.position[0], y: port.position[1], z: port.position[2], heading: 0 }
       return { x: 0, y: 0, z: 0, heading: 0 }

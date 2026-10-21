@@ -32,9 +32,18 @@
  * The director now takes a **continuous** time, and the agents' poses are
  * interpolated between recorded frames, so the camera and the subject are
  * smooth in the same way at the same time.
+ *
+ * ## The second kind of judder
+ *
+ * Even with the poses interpolated, the camera swung five point nine radians in
+ * a single frame, because its yaw was the robot's *heading* and a rover doing a
+ * coverage pattern turns hard. So the camera follows the direction of travel
+ * over a couple of seconds instead — where the machine is going, rather than
+ * which way its wheels are pointing. A camera operator does the same thing.
  */
 
 import type { SimFrame } from '../sim/report/frame.ts'
+import { angleDelta, clamp } from '../sim/math.ts'
 
 export type Shot = {
   /** Shown in the console while the shot is live. */
@@ -195,7 +204,24 @@ export const CUT: readonly Shot[] = [
   },
 ]
 
+/**
+ * How fast the camera may swing, in radians per unit of the run.
+ *
+ * The run is about thirty-four seconds of wall clock, so this is roughly a
+ * third of a radian a second — a brisk pan and no more.
+ *
+ * A camera has inertia. Without a limit, the camera's yaw was the robot's
+ * heading and it swung nearly six radians in one frame whenever the robot
+ * turned hard, which is a whip pan every time a coverage robot changed its mind.
+ */
+const MAX_YAW_RATE = 10
+
 export class CameraDirector {
+  /** The yaw the camera is actually at, which lags the yaw it wants. */
+  private yaw = 0
+  private yawSet = false
+  private lastT = -1
+
   constructor(private readonly shots: readonly Shot[] = CUT) {}
 
   /** The shot live at a point in the run. */
@@ -208,6 +234,31 @@ export class CameraDirector {
   }
 
   /**
+   * The direction a machine is actually travelling, over a window.
+   *
+   * Not its heading. A heading is instantaneous, and a rover doing a coverage
+   * pattern turns hard and often: the camera followed the heading exactly and
+   * swung five point nine radians in one frame, which is the judder the whole
+   * interpolation was supposed to remove. The direction of *travel* over a
+   * couple of seconds is what a camera operator follows, because it is where the
+   * machine is going rather than which way its wheels are pointing.
+   */
+  private travelHeading(
+    sample: (t: number) => SimFrame,
+    id: string,
+    t: number,
+  ): number | null {
+    const window = 0.008
+    const before = sample(Math.max(0, t - window)).agents.find((a) => a.id === id)
+    const after = sample(Math.min(1, t + window)).agents.find((a) => a.id === id)
+    if (before === undefined || after === undefined) return null
+    const dx = after.x - before.x
+    const dz = after.z - before.z
+    if (Math.hypot(dx, dz) < 0.03) return null
+    return Math.atan2(dz, dx)
+  }
+
+  /**
    * The camera at a point in the run, given the interpolated frame.
    *
    * The yaw of a followed shot is the robot's heading plus a fixed offset, so
@@ -215,7 +266,8 @@ export class CameraDirector {
    * turns — which is what a camera operator does and what makes a machine look
    * like it is going somewhere.
    */
-  at(t: number, frame: SimFrame): CameraState {
+  at(t: number, sample: (t: number) => SimFrame): CameraState {
+    const frame = sample(t)
     const shot = this.shotAt(t)
     const span = Math.max(1e-6, shot.to - shot.from)
     const local = smoothstep((t - shot.from) / span)
@@ -242,13 +294,29 @@ export class CameraDirector {
       tz = mix(a[2], b[2], local)
     }
 
-    let yaw = shot.yaw ?? 0
+    let wanted: number
     if (shot.relativeYaw !== undefined) {
       const agent = frame.agents.find((a) => a.id === shot.follow)
-      yaw = (agent?.heading ?? 0) + shot.relativeYaw
+      const travel = this.travelHeading(sample, shot.follow ?? '', t)
+      wanted = (travel ?? agent?.heading ?? 0) + shot.relativeYaw
     } else {
-      yaw = mix(shot.yaw ?? 0, shot.yaw2 ?? shot.yaw ?? 0, local)
+      wanted = mix(shot.yaw ?? 0, shot.yaw2 ?? shot.yaw ?? 0, local)
     }
+
+    // The rate limit, and a cut's worth of freedom: a shot boundary is allowed
+    // to swing the camera immediately, because that is what a cut is.
+    const dt = this.lastT < 0 ? 0 : Math.abs(t - this.lastT)
+    this.lastT = t
+    const cut = this.shotAt(Math.max(0, t - 1e-6)).name !== shot.name
+    let yaw: number
+    if (!this.yawSet || cut) {
+      yaw = wanted
+      this.yawSet = true
+    } else {
+      const limit = MAX_YAW_RATE * dt
+      yaw = this.yaw + clamp(angleDelta(wanted, this.yaw), -limit, limit)
+    }
+    this.yaw = yaw
 
     const pitch = mix(shot.pitch ?? 0.2, shot.pitch2 ?? shot.pitch ?? 0.2, local)
     const distance = mix(shot.distance ?? 12, shot.distance2 ?? shot.distance ?? 12, local)
