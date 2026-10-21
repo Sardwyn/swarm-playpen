@@ -198,6 +198,9 @@ const playButton = document.getElementById('c-play') as HTMLButtonElement | null
 const cutButton = document.getElementById('c-shot') as HTMLButtonElement | null
 const speedButton = document.getElementById('c-speed') as HTMLButtonElement | null
 const shotName = document.getElementById('c-shotname')
+const capShot = document.getElementById('cap-shot')
+const capLine = document.getElementById('cap-line')
+const capLive = document.getElementById('cap-live')
 const reportButton = document.getElementById('c-report') as HTMLButtonElement | null
 if (reportButton !== null) {
   reportButton.addEventListener('click', () => {
@@ -231,7 +234,27 @@ function showAt(index: number): void {
     if (yacht !== null) yacht.setTrailPoints(frame)
   }
   consoleUi.update(frame, take, floor, take.frames.length)
-  if (shotName !== null) shotName.textContent = director.shotAt(playhead / (take.frames.length - 1)).name
+
+  // The caption: what the viewer is being shown, and what the machine is
+  // actually doing at that moment.
+  const t = playhead / Math.max(1, take.frames.length - 1)
+  const shot = director.shotAt(t)
+  if (shotName !== null) shotName.textContent = shot.name
+  if (capShot !== null) capShot.textContent = shot.name
+  if (capLine !== null) capLine.textContent = shot.caption
+  if (capLive !== null) {
+    const subject = shot.follow === undefined ? undefined : frame.agents.find((a) => a.id === shot.follow)
+    const others = frame.agents
+      .filter((a) => a.id !== shot.follow)
+      .map((a) => `${a.id} ${(a.battery * 100).toFixed(0)}%`)
+      .join(' · ')
+    capLive.textContent =
+      subject === undefined
+        ? others
+        : `${subject.id} · ${subject.currentJobType !== null ? subject.currentJobType.replace(/_/g, ' ') : 'idle'} · ${(
+            subject.battery * 100
+          ).toFixed(0)}% battery${others === '' ? '' : ` · ${others}`}`
+  }
   updateTags(frame)
 }
 

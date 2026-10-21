@@ -513,8 +513,11 @@ competitor, our channel, and our first design partner.*
 | `src/sim/report/verdict.ts` | A miss classified by cause: ARCHITECTURE or DETECTION. |
 | `src/sim/report/frame.ts` | The frame contract, now including the volumetric coverage. |
 | `src/view/hull.ts` | Hull geometry: shell, plating at the cut plane, profile curve, sheer line. |
-| `src/view/yacht-scene.ts` | The scene. Ghost hull, coverage drawn into it, the unreachable volume dark and red. |
-| `src/view/yacht-main.ts` | Run, record, replay, scrubber, panel. |
+| `src/view/yacht-scene.ts` | The scene. Ghost hull, coverage drawn into it, the unreachable volume dark and red, the machines with their trails, sensing cones and lock-on reticles. |
+| `src/view/yacht-main.ts` | Run, record, replay. The playhead is continuous, so the camera and the machines move at the display rate and not at the record rate. |
+| `src/view/yacht-director.ts` | The camera. A list of shots, and a shot either holds a position or locks onto a machine. Rate-limited, because a camera has inertia. |
+| `src/view/yacht-console.ts` | The readout: agent cards, mission panel, event stream, findings, plan view, timeline. |
+| `test/view/yacht-director.test.ts` | The two properties that make the motion read as cinema: the camera does not jump inside a shot, and a follow shot stays locked to its machine. |
 | `index-yacht.html` | The page. `npm run dev`, then `/index-yacht.html`. |
 | `scripts/diag-yacht-form.ts` | The inboard profile and the access arithmetic. `npm run diag:yacht`. |
 | `scripts/diag-yacht-sim.ts` | The run, the findings, and the verdict. `npm run diag:yacht-sim`. |

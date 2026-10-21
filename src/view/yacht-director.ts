@@ -48,6 +48,14 @@ import { angleDelta, clamp } from '../sim/math.ts'
 export type Shot = {
   /** Shown in the console while the shot is live. */
   readonly name: string
+  /**
+   * The line under the shot name.
+   *
+   * Written by hand, because it is a piece of direction: it says what the
+   * viewer is being shown and why. Everything else on screen is a measurement;
+   * this is the sentence that makes the measurement mean something.
+   */
+  readonly caption: string
   /** From 0 to 1 of the run. */
   readonly from: number
   readonly to: number
@@ -97,6 +105,7 @@ function mix(a: number, b: number, t: number): number {
 export const CUT: readonly Shot[] = [
   {
     name: 'ESTABLISH',
+    caption: 'Sunseeker Predator 55, midships. The swarm is already inside.',
     from: 0.0,
     to: 0.11,
     target: [0.5, 0.4, 0],
@@ -114,6 +123,7 @@ export const CUT: readonly Shot[] = [
     // Low and behind, so the ground bot is silhouetted against the engine room
     // and its own light spreads out in front of it.
     name: 'GROUND-01 · SWEEP',
+    caption: 'The rover works the sole: depth, thermal and humidity, three metres at a time.',
     from: 0.11,
     to: 0.34,
     follow: 'ground-01',
@@ -129,6 +139,7 @@ export const CUT: readonly Shot[] = [
     // Above and behind, looking down into the 410 mm deckhead void the hover bot
     // is holding station in.
     name: 'HOVER-01 · DECKHEAD',
+    caption: '410 mm of headroom. The hover needs a metre, and its pack will not last the try.',
     from: 0.34,
     to: 0.5,
     follow: 'hover-01',
@@ -144,6 +155,7 @@ export const CUT: readonly Shot[] = [
     // Right down on the bore. The crawler is 80 mm across and it is in a
     // 60 mm pipe, so this shot is the only way it is ever going to be seen.
     name: 'INCH-01 · FUEL LINE',
+    caption: '80 mm inside a 60 mm bore. The only machine that fits in here, and the only place a person cannot.',
     from: 0.5,
     to: 0.63,
     follow: 'inch-01',
@@ -158,6 +170,7 @@ export const CUT: readonly Shot[] = [
   {
     // Pull forward along the hull. The void does not light up.
     name: 'THE VOID',
+    caption: 'Forward, under the deck. Sealed at both ends. Nothing in the swarm has been here.',
     from: 0.63,
     to: 0.75,
     target: [0.5, 0.4, 0],
@@ -174,6 +187,7 @@ export const CUT: readonly Shot[] = [
   {
     // Above the deck, looking down through the 200 mm hole.
     name: '200 mm',
+    caption: 'Two hundred millimetres of clear opening. A hand-hole, not a man-way.',
     from: 0.75,
     to: 0.88,
     target: [3.0, 0.9, 0.65],
@@ -189,6 +203,7 @@ export const CUT: readonly Shot[] = [
   },
   {
     name: 'RELEASE',
+    caption: 'The engine room is covered. The void is not, and no reading will say so.',
     from: 0.88,
     to: 1.0,
     target: [3.0, 0.7, 0.65],

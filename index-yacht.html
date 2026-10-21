@@ -227,6 +227,25 @@
       #nogpu span { max-width: 360px; line-height: 1.8; }
       .console.flat { grid-template-columns: 360px 1fr 440px; }
 
+      /* ---- the caption ---- */
+      #caption {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        bottom: 66px; z-index: 3; pointer-events: none;
+        width: min(640px, 46vw); text-align: center;
+      }
+      #caption b {
+        display: block; font-size: 12px; letter-spacing: 0.28em; color: var(--teal);
+        font-weight: 500; text-shadow: 0 0 14px rgba(0,0,0,0.9);
+      }
+      #caption p {
+        margin: 7px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-hot);
+        text-shadow: 0 0 14px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.9);
+      }
+      #caption span {
+        display: block; margin-top: 6px; font-size: 10px; letter-spacing: 0.12em;
+        color: var(--text-dim); text-shadow: 0 0 10px rgba(0,0,0,0.9);
+      }
+
       /* ---- the report drawer ---- */
       #side {
         position: absolute; top: 44px; right: 0; bottom: 50px; width: 380px;
@@ -274,6 +293,11 @@
       <div id="stage" tabindex="0"></div>
       <div id="vignette"></div>
       <div id="tags"></div>
+      <div id="caption">
+        <b id="cap-shot">—</b>
+        <p id="cap-line">—</p>
+        <span id="cap-live"></span>
+      </div>
       <div id="console"></div>
       <div id="side"></div>
       <div id="boot">
