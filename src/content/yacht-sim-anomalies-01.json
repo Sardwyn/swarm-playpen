@@ -3,14 +3,14 @@
   "houseId": "yacht-sim-01",
   "note": "GROUND TRUTH for the yacht domain. The sim reads this to build the scalar fields and to score detections. No sensor, detector or agent may import it — the same boundary as the house's, and the same test.",
 
-  "_theFinding": "Three faults are missed. yc-04 is the most severe fault on the vessel and it is a condensation in the forward stringer void, whose only apertures are two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. The nearest candidate the swarm raised was 7.61 m away. The other two are detection misses, not coverage misses, and the report says so rather than dressing them up.",
+  "_theFinding": "Three faults are missed, and the three misses have three different reasons, which is the point. yc-04 is the most severe fault on the vessel and it is a condensation in the forward stringer void, whose only apertures are two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. The nearest candidate the swarm raised was 7.61 m away. That one is ARCHITECTURE: the boat stopped the swarm. yc-07 is also architectural in effect - the deckhead void is 410 mm and the hover bot faulted on an empty battery - and yc-02 is a DETECTION miss, because the blocked-vent detector's gate sits above the whole range of the air field. The report says which is which rather than dressing them all up as coverage.",
 
   "_onTaxonomy": "`class` is the marine CAUSE — what a surveyor would write on the report. `signature` is the physical READING the detector produces, in the generic vocabulary. They are different things and are kept in different fields because five marine causes share the `moisture_leak` reading and the instrument cannot tell them apart: yc-03, yc-04 and yc-07 are an active leak, a condensation and a hygroscopic salt equilibrium, and they look identical to a humidity sensor. The instrument finds a reading; the taxonomy says what the reading is consistent with; the distinction is the product's honesty and the reason the report never names a cause it cannot support.",
 
   "_onMissReason": "A per-fault reason for a miss, in the same spirit as the house's `crackLimitation` note: a fault that is reported as missed carries the structural reason with it, rather than being presented as a bare 0.00. A miss with a reason is a finding. A miss without one is a defect.",
 
   "coverageThreshold": 0.85,
-  "iouMatch": 0.3,
+  "matchDistanceM": 3.0,
 
   "anomalies": [
     {
@@ -36,7 +36,7 @@
       "position": [-6.2, 0.5, 1.35],
       "halfExtents": [0.3, 0.25, 0.2],
       "severity": 0.5,
-      "missReason": "DETECTION, not coverage. The nearest candidate is 0.63 m away. The crawler's obstruction finding was credited to the fuel-line fault, which was nearer, so the vent-port obstruction went unmatched. A matching limitation, and a reminder that a finding is not a fault until it has been matched to one.",
+      "missReason": "DETECTION, not coverage. The nearest candidate is 0.63 m away, so the swarm was at the vent. The blocked-vent detector did not fire because the air proxy at the port rose 118% over the field's ambient and the detector's gate is a 150% rise - the entire field peaks below the threshold, so no position in the engine bay would have triggered it. That is a calibration finding and not a boat finding, and it is the kind of thing this twin exists to surface: the house's gate does not transfer to a boat. The crawler's obstruction finding cannot be credited to this fault either, and the manifold is why - that reading is from inside the fuel line, and an obstruction in a 60 mm bore is not a blocked air path in the room.",
       "expectedDetector": "geometry.blocked_vent",
       "sourceStrength": 0.18,
       "sourceSigma": 0.6,
@@ -80,11 +80,10 @@
       "position": [-3.95, 0.2, -1.08],
       "halfExtents": [0.25, 0.25, 0.25],
       "severity": 0.4,
-      "missReason": "DETECTION, not coverage. The nearest candidate is 0.01 m away - the swarm was on top of it - and the clutter detector still did not match it. A localisation limitation in the clutter detector, reported as a detection miss rather than dressed up as a coverage failure.",
       "expectedDetector": "geometry.clutter",
       "sourceStrength": 0,
       "sourceSigma": 0.7,
-      "note": "A drain run obstructed. Note what the instrument contributes: an obstruction, at a place on the map. It cannot tell a blocked drain from a stowed toolbox, and the report does not pretend otherwise."
+      "note": "A drain run obstructed by stowage sitting over the grating, and the obstruction is physically in the content file, so the swarm has something to find. Note what the instrument contributes: an obstruction, at a place on the map. It cannot tell a blocked drain from a stowed toolbox, and the report does not pretend otherwise - it is the same reading either way."
     },
     {
       "id": "yc-06",
@@ -113,7 +112,7 @@
       "expectedDetector": "humidity.baseline",
       "sourceStrength": 0.34,
       "sourceSigma": 0.9,
-      "missReason": "TOO TALL. The deckhead void over the engine is 410 mm, and the hover bot's clearance is 1.0 m. It went in, spent its entire 12 Wh pack holding station against the ceiling, and faulted on empty without a candidate. The ground bot's humidity reading reaches the source but localises to the agent, 850 mm below it, so the extent does not overlap and the report records it as unverified. Two different reasons, one of them costing the whole battery.",
+      "missReason": "TOO TALL, and on the wrong manifold. The deckhead void over the engine is 410 mm and the hover bot's clearance is 1.0 m: it went in, spent its entire 12 Wh pack holding station against the ceiling, and faulted on empty without a candidate. The ground bot's humidity reading does reach the source - the nearest candidate is 0.73 m away - but it is a reading taken on the sole, 850 mm below the fault, and a reading on the ground manifold cannot be credited to a fault in the deckhead void. Two reasons, one of them costing the whole battery.",
       "note": "Salt in the core, in equilibrium with the boat's own ambient. Even if the swarm had got there, the honest answer would have been 'consistent with hygroscopic salt, not provable without a sample' — the one class in the taxonomy where the instrument says less than the owner wants to hear, and is right."
     }
   ]

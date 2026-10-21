@@ -61,6 +61,14 @@ function buildField(
   // signature in a given field contribute nothing, rather than contributing
   // noise — a crack has no humidity.
   //
+  // The filter is on the **signature**, not the class. The signature is the
+  // physical reading, and it is the reading that determines which field a defect
+  // shows up in. The class is the cause, which is a domain's vocabulary and says
+  // nothing about physics: keying the humidity field off `a.class === 'moisture_leak'`
+  // meant that renaming a fault to `active_water_ingress` silently deleted the
+  // moisture it produced, and the swarm stopped finding it. The class is for
+  // readers; the signature is for the physics.
+  //
   // The manifold filter is not a tidiness rule. The fields are sampled in the
   // *ground plane*, so a defect on another manifold that contributes here is a
   // defect the ground bot can smell from four hundred millimetres away through a
@@ -75,8 +83,8 @@ function buildField(
   // could not be varied independently — the two would have to be co-tuned forever.
   const sources = anomalies.anomalies.filter((a) => {
     if (kind === 'temperature') return a.sourceStrength !== 0
-    if (kind === 'humidity') return a.class === 'moisture_leak'
-    return a.class === 'blocked_vent'
+    if (kind === 'humidity') return a.signature === 'moisture_leak'
+    return a.signature === 'blocked_vent'
   })
 
   for (let cz = 0; cz < height; cz++) {

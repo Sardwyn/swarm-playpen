@@ -5,7 +5,7 @@
   "contentNote": "house-01.json contains a fifth non-blocking object, `curtain-living`, which is deliberately NOT an authored hazard. It exists so the clutter detector's known over-fire (spec §4.6, no vision) has something real to over-fire on. Remove it and the measured precision improvement would be a fiction.",
   "crackLimitation": "structural_crack is NOT detectable at Stage B, and that is a finding rather than a bug. Two reasons, both structural. (1) The detector is geometric: it resolves a thin, isolated, linear obstacle, and cannot resolve a hairline crack in a wall surface, which is what most real cracks are. (2) A feature thin enough to be proxy-detectable is thinner than the navigation inflation band: a 0.10 m pier in a 0.05 m grid with 0.20 m clearance becomes an impassable 0.50 m exclusion, and the robot wedges against it. That is the general finding worth carrying forward — **a defect the robot cannot get close enough to see is a defect it cannot report, and the navigation mask is what prevents it.** Authored freestanding geometry for these two instances was tried and removed for exactly this reason; see spec §13.7. The class is reported as missed with this reason attached rather than as a measured 0.00.",
   "coverageThreshold": 0.85,
-  "iouMatch": 0.3,
+  "matchDistanceM": 3.0,
   "anomalies": [
     {
       "id": "ml-01",

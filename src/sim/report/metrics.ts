@@ -179,6 +179,20 @@ export function scoreDetections(
     byClass.set(a.signature, list)
   }
 
+  // A candidate may only be credited to a fault on the manifold it was found on.
+  //
+  // The manifold is where the agent lives and where its sensor is valid: the
+  // ground manifold is the floor plane, the constrained manifold is the inside of
+  // a conduit, the volumetric manifold is the space above the floor. A reading
+  // taken on the sole of the engine room cannot localise to a fault 850 mm above
+  // it in the deckhead void, and an obstruction found inside a 60 mm fuel line is
+  // not a blocked air vent in the room.
+  //
+  // Before this gate, the yacht run reported a fault in the forward stringer
+  // void as FOUND, on the strength of a humidity reading taken on the engine room
+  // sole two metres away, in a different manifold, with no extent overlap at
+  // all. That is a false clearance on a boat, and the gate is the fix.
+
   // Deterministic candidate order: by class, then id.
   const ordered = [...findings].sort((a, b) => {
     if (a.predictedClass !== b.predictedClass) return a.predictedClass < b.predictedClass ? -1 : 1
@@ -186,7 +200,9 @@ export function scoreDetections(
   })
 
   for (const candidate of ordered) {
-    const pool = (byClass.get(candidate.predictedClass) ?? []).filter((a) => !usedAnomalies.has(a.id))
+    const pool = (byClass.get(candidate.predictedClass) ?? []).filter(
+      (a) => !usedAnomalies.has(a.id) && a.manifold === candidate.manifold,
+    )
     if (pool.length === 0) continue
 
     // Nearest unmatched anomaly of the same class, but only within a plausible
@@ -202,7 +218,7 @@ export function scoreDetections(
       }
     }
 
-    const maxMatchDistance = 3.0
+    const maxMatchDistance = truth.matchDistanceM
     if (best === null || bestDistance > maxMatchDistance) continue
 
     usedAnomalies.add(best.id)

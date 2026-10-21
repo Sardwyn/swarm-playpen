@@ -64,7 +64,8 @@
     { "id": "exhaust-header", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -5.45, "minY": 0.15, "minZ": 0.25, "maxX": -4.85, "maxY": 0.6, "maxZ": 0.6 } },
     { "id": "coolant-tank", "manifold": "ground", "blocking": true, "material": "tank", "aabb": { "minX": -4.7, "minY": 0, "minZ": -0.9, "maxX": -4.0, "maxY": 0.45, "maxZ": -0.2 } },
     { "id": "gearbox", "manifold": "ground", "blocking": true, "material": "machinery", "aabb": { "minX": -5.7, "minY": 0, "minZ": -0.5, "maxX": -4.9, "maxY": 0.5, "maxZ": 0.5 } },
-    { "id": "stowage-loose", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -4.6, "minY": 0.0, "minZ": -0.85, "maxX": -4.1, "maxY": 0.4, "maxZ": -0.25 } },
+    { "id": "stowage-loose", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -3.6, "minY": 0.0, "minZ": 0.55, "maxX": -3.1, "maxY": 0.4, "maxZ": 1.1 } },
+    { "id": "stowage-over-drain", "manifold": "ground", "blocking": false, "material": "clutter", "aabb": { "minX": -4.2, "minY": 0.0, "minZ": -1.4, "maxX": -3.7, "maxY": 0.25, "maxZ": -0.95 } },
     { "id": "shaft-bracket-port", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -4.9, "minY": 0, "minZ": -1.0, "maxX": -4.6, "maxY": 0.35, "maxZ": -0.6 } },
     { "id": "shaft-bracket-stbd", "manifold": "ground", "blocking": true, "material": "steel", "aabb": { "minX": -4.9, "minY": 0, "minZ": 0.6, "maxX": -4.6, "maxY": 0.35, "maxZ": 1.0 } },
 

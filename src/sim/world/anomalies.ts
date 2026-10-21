@@ -82,8 +82,31 @@ export type AnomalySet = {
   readonly houseId: string
   /** Spec §10: COVERAGE_THRESHOLD. Below this, no negative claim may be emitted. */
   readonly coverageThreshold: number
-  /** Spec §10: IOU_MATCH. */
-  readonly iouMatch: number
+  /**
+   * How far a candidate may be from a fault and still be credited to it, metres.
+   *
+   * This replaces `iouMatch`, which the spec declared at 0.3 and which no code
+   * ever read. It was inert, and it was inert for a reason that turned out to be
+   * important: the extent overlap between a finding and a fault is near zero
+   * even when the finding is exactly on the fault. Measured on the yacht run,
+   * the crawler sitting 0.00 m from a fuel-line obstruction has an extent
+   * overlap of 0.025, because the finding's box is a bore and the fault's box is
+   * a 500 mm lump of debris.
+   *
+   * Intersection-over-union measures *delineation*, not *detection*. The
+   * detectors in this sim do not delineate: the humidity detector localises to
+   * the agent because it has no bearing, so its box is a guess about how far the
+   * source is. Gating on IoU would have rejected every detection in the run and
+   * reported a recall of zero, which is a true statement about the gate and a
+   * false statement about the swarm.
+   *
+   * So the threshold that actually gates a match is the one the detectors can
+   * satisfy — distance — and it is now declared in the content and read,
+   * rather than hard-coded and invisible. The extent overlap is still computed
+   * and still reported, as a measure of delineation quality, because that is
+   * what it is.
+   */
+  readonly matchDistanceM: number
   readonly anomalies: readonly Anomaly[]
 }
 
@@ -194,7 +217,7 @@ function validateSet(rawSet: unknown): AnomalySet {
     id: (s.id as string) ?? 'anomalies',
     houseId: (s.houseId as string) ?? 'unknown',
     coverageThreshold: s.coverageThreshold as number,
-    iouMatch: (s.iouMatch as number) ?? 0.3,
+    matchDistanceM: (s.matchDistanceM as number) ?? 3.0,
     anomalies,
   }
 }

@@ -248,7 +248,7 @@ describe('the house is unaffected', () => {
         id: 'x',
         houseId: 'y',
         coverageThreshold: 0.85,
-        iouMatch: 0.3,
+        matchDistanceM: 3.0,
         anomalies: [
           {
             id: 'a-1',
