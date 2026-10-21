@@ -3,7 +3,9 @@
   "houseId": "yacht-sim-01",
   "note": "GROUND TRUTH for the yacht domain. The sim reads this to build the scalar fields and to score detections. No sensor, detector or agent may import it — the same boundary as the house's, and the same test.",
 
-  "_theFinding": "Three faults are missed. yc-04 is the most severe fault on the vessel and it is in the forward stringer void, whose only apertures are two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. The nearest candidate the swarm raised was 7.61 m away. The other two are detection misses, not coverage misses, and the report says so rather than dressing them up.",
+  "_theFinding": "Three faults are missed. yc-04 is the most severe fault on the vessel and it is a condensation in the forward stringer void, whose only apertures are two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. The nearest candidate the swarm raised was 7.61 m away. The other two are detection misses, not coverage misses, and the report says so rather than dressing them up.",
+
+  "_onTaxonomy": "`class` is the marine CAUSE — what a surveyor would write on the report. `signature` is the physical READING the detector produces, in the generic vocabulary. They are different things and are kept in different fields because five marine causes share the `moisture_leak` reading and the instrument cannot tell them apart: yc-03, yc-04 and yc-07 are an active leak, a condensation and a hygroscopic salt equilibrium, and they look identical to a humidity sensor. The instrument finds a reading; the taxonomy says what the reading is consistent with; the distinction is the product's honesty and the reason the report never names a cause it cannot support.",
 
   "_onMissReason": "A per-fault reason for a miss, in the same spirit as the house's `crackLimitation` note: a fault that is reported as missed carries the structural reason with it, rather than being presented as a bare 0.00. A miss with a reason is a finding. A miss without one is a defect.",
 
@@ -13,18 +15,23 @@
   "anomalies": [
     {
       "id": "yc-01",
-      "class": "thermal_anomaly",
+      "class": "exhaust_leak",
+      "signature": "thermal_anomaly",
+      "docRef": "F12",
       "manifold": "ground",
       "position": [-6.5, 0.3, -0.6],
       "halfExtents": [0.3, 0.3, 0.3],
       "severity": 0.6,
       "expectedDetector": "thermal.baseline",
       "sourceStrength": 0.4,
-      "sourceSigma": 0.7
+      "sourceSigma": 0.7,
+      "note": "A weeping exhaust joint in the engine bay. The thermal signature is the tell: the exhaust runs hot and the leak runs cold against it. The instrument cannot name the gasket — that is the yard's call — but it can put a mark on the manifold and say the temperature there is not what the rest of the manifold is doing."
     },
-            {
+    {
       "id": "yc-02",
-      "class": "blocked_vent",
+      "class": "blocked_ventilation",
+      "signature": "blocked_vent",
+      "docRef": "F9a",
       "manifold": "ground",
       "position": [-6.2, 0.5, 1.35],
       "halfExtents": [0.3, 0.25, 0.2],
@@ -32,48 +39,58 @@
       "missReason": "DETECTION, not coverage. The nearest candidate is 0.63 m away. The crawler's obstruction finding was credited to the fuel-line fault, which was nearer, so the vent-port obstruction went unmatched. A matching limitation, and a reminder that a finding is not a fault until it has been matched to one.",
       "expectedDetector": "geometry.blocked_vent",
       "sourceStrength": 0.18,
-      "sourceSigma": 0.6
+      "sourceSigma": 0.6,
+      "note": "The engine bay extraction inlet is obstructed. Stale air accumulates and everything in the bay runs warmer, which is what makes every other thermal reading in this compartment harder to interpret."
     },
-{
+    {
       "id": "yc-03",
-      "class": "moisture_leak",
+      "class": "active_water_ingress",
+      "signature": "moisture_leak",
+      "docRef": "F2",
       "manifold": "ground",
       "position": [-5.0, 0.5, -0.8],
       "halfExtents": [0.5, 0.4, 0.4],
       "severity": 0.75,
       "expectedDetector": "humidity.baseline",
       "sourceStrength": 0.32,
-      "sourceSigma": 0.9
+      "sourceSigma": 0.9,
+      "note": "An active leak in the engine bay. The swarm finds the reading and the report says 'a moisture anomaly of undetermined cause' — because a condensation and a historic salt would read the same. What the owner does with that is the deployment: wash the deck, watch whether it comes back."
     },
     {
       "id": "yc-04",
-      "class": "moisture_leak",
+      "class": "condensation_in_void",
+      "signature": "moisture_leak",
+      "docRef": "F1",
       "manifold": "volumetric",
       "position": [4.2, 0.6, 0.65],
       "halfExtents": [0.8, 0.5, 0.3],
       "severity": 0.85,
-      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The nearest candidate the swarm raised was 7.61 m away. The forward stringer void is entered only through two 200 mm deck hatches; the ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can.",
       "expectedDetector": "humidity.baseline",
       "sourceStrength": 0.36,
       "sourceSigma": 1.0,
-      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The forward stringer void is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can. The nearest humidity-capable agent is 6.6 m away, in the engine room, and its sensor range is 3 m."
+      "missReason": "UNREACHABLE, and it is the most severe fault on the vessel. The forward stringer void is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. A person can get through a 200 mm hatch. Nothing in the swarm can. The nearest humidity-capable agent is 6.6 m away, in the engine room, and its sensor range is 3 m.",
+      "note": "The fault the whole product exists for. Condensation in a void is the most common void fault on any boat and the one nobody reports, because it needs somebody to have been in there. This is a person-and-a-torch job today."
     },
     {
       "id": "yc-05",
-      "class": "clutter_hazard",
+      "class": "blocked_drainage",
+      "signature": "clutter_hazard",
+      "docRef": "F9b",
       "manifold": "ground",
       "position": [-3.95, 0.2, -1.08],
       "halfExtents": [0.25, 0.25, 0.25],
       "severity": 0.4,
       "missReason": "DETECTION, not coverage. The nearest candidate is 0.01 m away - the swarm was on top of it - and the clutter detector still did not match it. A localisation limitation in the clutter detector, reported as a detection miss rather than dressed up as a coverage failure.",
-      "missReason": "DETECTION, not coverage. The nearest candidate is 0.01 m away - the swarm was on top of it - and the clutter detector still did not match it. A localisation limitation in the clutter detector, reported as a detection miss rather than dressed up as a coverage failure.",
       "expectedDetector": "geometry.clutter",
       "sourceStrength": 0,
-      "sourceSigma": 0.7
+      "sourceSigma": 0.7,
+      "note": "A drain run obstructed. Note what the instrument contributes: an obstruction, at a place on the map. It cannot tell a blocked drain from a stowed toolbox, and the report does not pretend otherwise."
     },
     {
       "id": "yc-06",
-      "class": "blocked_vent",
+      "class": "fuel_line_debris",
+      "signature": "blocked_vent",
+      "docRef": "F16",
       "manifold": "constrained",
       "position": [-6.45, 0.05, 0.0],
       "halfExtents": [0.25, 0.08, 0.25],
@@ -81,11 +98,14 @@
       "expectedDetector": "constrained.obstruction",
       "sourceStrength": 0,
       "sourceSigma": 0.6,
-      "conduit": { "conduitId": "fuel-line", "arc": 1.0 }
+      "conduit": { "conduitId": "fuel-line", "arc": 1.0 },
+      "note": "Debris in the fuel supply line, found by the crawler looking down the bore. A 60 mm fuel line is a good place to put a robot and a bad place to put a person, and it is the clearest case in the taxonomy for the swarm earning its keep."
     },
     {
       "id": "yc-07",
-      "class": "moisture_leak",
+      "class": "salt_hygroscopic_equilibrium",
+      "signature": "moisture_leak",
+      "docRef": "F6",
       "manifold": "volumetric",
       "position": [-5.5, 1.15, 0.5],
       "halfExtents": [0.6, 0.2, 0.5],
@@ -93,7 +113,8 @@
       "expectedDetector": "humidity.baseline",
       "sourceStrength": 0.34,
       "sourceSigma": 0.9,
-      "missReason": "TOO TALL. The deckhead void over the engine is 410 mm, and the hover bot's clearance is 1.0 m. It went in, spent its entire 12 Wh pack holding station against the ceiling, and faulted on empty without a candidate. The ground bot's humidity reading reaches the source but localises to the agent, 850 mm below it, so the extent does not overlap and the report records it as unverified. Two different reasons, one of them costing the whole battery."
+      "missReason": "TOO TALL. The deckhead void over the engine is 410 mm, and the hover bot's clearance is 1.0 m. It went in, spent its entire 12 Wh pack holding station against the ceiling, and faulted on empty without a candidate. The ground bot's humidity reading reaches the source but localises to the agent, 850 mm below it, so the extent does not overlap and the report records it as unverified. Two different reasons, one of them costing the whole battery.",
+      "note": "Salt in the core, in equilibrium with the boat's own ambient. Even if the swarm had got there, the honest answer would have been 'consistent with hygroscopic salt, not provable without a sample' — the one class in the taxonomy where the instrument says less than the owner wants to hear, and is right."
     }
   ]
 }

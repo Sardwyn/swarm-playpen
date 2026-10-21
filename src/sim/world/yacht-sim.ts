@@ -34,6 +34,7 @@ import { loadHouse } from './content.ts'
 import { loadAnomalySet } from './anomalies.ts'
 import { buildHullForm } from './yacht-form.ts'
 import type { HullForm, Principal } from './yacht-form.ts'
+import { loadMarineTaxonomy, classById } from './marine-taxonomy.ts'
 import yachtJson from '../../content/yacht-sim-01.json'
 import yachtAnomalies from '../../content/yacht-sim-anomalies-01.json'
 
@@ -42,6 +43,51 @@ export const yachtHouse = loadHouse(yachtJson as unknown)
 
 /** The oracle for the vessel. */
 export const yachtTruth = loadAnomalySet(yachtAnomalies as unknown)
+
+/**
+ * The marine fault taxonomy: the classes a surveyor works from, and which of them
+ * the current sensor suite can produce a reading for.
+ */
+export const marineTaxonomy = loadMarineTaxonomy()
+
+/**
+ * The oracle is checked against the taxonomy at load time.
+ *
+ * Two things must hold, and both are the kind of thing that goes wrong silently:
+ *
+ * 1. Every authored fault names a class the taxonomy declares. An unknown class
+ *    means the oracle and the taxonomy have drifted apart, and the report would
+ *    quote a fault nobody has defined.
+ * 2. The signature the oracle declares is the one the taxonomy says that class
+ *    produces. If they disagree, the oracle is asserting a reading the class
+ *    cannot make, and every detection of it would be scored against a fiction.
+ *
+ * The second is the one worth having. It is the difference between "the swarm
+ * found a condensation" and "the swarm found a moisture anomaly, which is
+ * consistent with a condensation, an active leak or a hygroscopic salt
+ * equilibrium" — and only the second is something the instrument can honestly
+ * claim.
+ */
+for (const a of yachtTruth.anomalies) {
+  const cls = classById(marineTaxonomy, a.class)
+  if (cls === undefined) {
+    throw new Error(
+      `yacht oracle: ${a.id} names class '${a.class}', which the marine taxonomy does not declare`,
+    )
+  }
+  if (!cls.signatures.includes(a.signature as never)) {
+    throw new Error(
+      `yacht oracle: ${a.id} declares signature '${a.signature}' but the taxonomy says ` +
+        `class '${a.class}' is indicated by ${cls.signatures.join(', ') || 'nothing'}`,
+    )
+  }
+  if (cls.observable === 'not_observable') {
+    throw new Error(
+      `yacht oracle: ${a.id} names class '${a.class}', which the taxonomy marks not_observable — ` +
+        `it cannot be in the oracle, because no reading exists for it to be found by`,
+    )
+  }
+}
 
 /**
  * The published principal characteristics.

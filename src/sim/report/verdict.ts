@@ -29,7 +29,10 @@ export type MissKind = 'FOUND' | 'ARCHITECTURE' | 'DETECTION'
 
 export type Verdict = {
   readonly id: string
+  /** The cause, in the domain's vocabulary. */
   readonly cls: string
+  /** The physical reading the detector would produce for it. */
+  readonly signature: string
   readonly manifold: string
   readonly severity: number
   readonly found: boolean
@@ -80,6 +83,7 @@ export function buildVerdict(
     out.push({
       id: a.id,
       cls: a.class,
+      signature: a.signature,
       manifold: a.manifold,
       severity: a.severity,
       found: matched !== undefined,

@@ -165,11 +165,18 @@ export function scoreDetections(
   const matches: ScoredMatch[] = []
   const usedAnomalies = new Set<string>()
 
+  // Matching is on the **signature**, not the class.
+  //
+  // A candidate is a physical reading; the truth entry names a cause. Where a
+  // domain has several causes behind one reading — five marine causes share
+  // `moisture_leak` — matching on the cause would credit the detector with
+  // distinguishing them, which it cannot do. Matching on the signature is what
+  // the instrument actually achieved.
   const byClass = new Map<string, Anomaly[]>()
   for (const a of anomalies) {
-    const list = byClass.get(a.class) ?? []
+    const list = byClass.get(a.signature) ?? []
     list.push(a)
-    byClass.set(a.class, list)
+    byClass.set(a.signature, list)
   }
 
   // Deterministic candidate order: by class, then id.
@@ -243,14 +250,14 @@ export function scoreDetections(
   // way". Reporting it as 0 would be a false negative claim, which spec §8.2
   // rule 2 forbids.
   const reachableClasses = new Set<string>(
-    truth.anomalies.filter((a) => !restrictToManifold || a.manifold === restrictToManifold).map((a) => a.class as string),
+    truth.anomalies.filter((a) => !restrictToManifold || a.manifold === restrictToManifold).map((a) => a.signature),
   )
   const adjusted: ClassMetrics[] = metrics.map((m): ClassMetrics => {
-    const truthCount = truth.anomalies.filter((a) => a.class === m.cls).length
+    const truthCount = truth.anomalies.filter((a) => a.signature === m.cls).length
     if (restrictToManifold && truthCount > 0 && reachableClasses.size > 0) {
       // Classes present in this manifold are assessable; classes with zero
       // anomalies here are not.
-      const hereCount = anomalies.filter((a) => a.class === m.cls).length
+      const hereCount = anomalies.filter((a) => a.signature === m.cls).length
       if (hereCount === 0 && truthCount > 0) {
         return {
           ...m,

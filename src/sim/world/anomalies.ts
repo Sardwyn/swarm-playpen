@@ -27,7 +27,26 @@ export type AnomalyClass = (typeof ANOMALY_CLASSES)[number]
 
 export type Anomaly = {
   readonly id: string
-  readonly class: AnomalyClass
+  /**
+   * The cause, in the domain's own vocabulary.
+   *
+   * For the house this is the generic class and nothing more. For a domain twin
+   * it is the marine fault — `condensation_in_void`, `active_water_ingress` — and
+   * it is what the verdict reports to a reader.
+   */
+  readonly class: string
+  /**
+   * The physical reading this anomaly produces, in the generic vocabulary.
+   *
+   * This is what a detector emits, and therefore what a candidate is matched on.
+   * It is deliberately *not* the cause: five marine causes share the
+   * `moisture_leak` signature, and a candidate cannot distinguish them. Matching
+   * on the cause would credit the detector with knowing something it cannot know.
+   *
+   * Defaults to `class` for sets that do not declare one — which is every set
+   * written before this distinction existed.
+   */
+  readonly signature: string
   readonly manifold: Manifold
   readonly position: readonly [number, number, number]
   readonly halfExtents: readonly [number, number, number]
@@ -87,9 +106,29 @@ function validateSet(rawSet: unknown): AnomalySet {
     }
     seen.add(a.id as string)
 
-    const cls = a.class as AnomalyClass
-    if (!ANOMALY_CLASSES.includes(cls)) {
-      throw new Error(`anomalies/${a.id as string}: unknown class '${String(a.class)}'`)
+    const cls = a.class
+    if (typeof cls !== 'string' || cls.length === 0) {
+      throw new Error(`anomalies/${a.id as string}: class must be a non-empty string`)
+    }
+
+    // The signature is what the detector emits, so it must be in the generic
+    // vocabulary — a candidate can only ever be labelled with one of these. The
+    // class may be any vocabulary the domain chooses.
+    const declared = a.signature
+    const signature =
+      declared === undefined || declared === null ? cls : (declared as string)
+    if (!ANOMALY_CLASSES.includes(signature as AnomalyClass)) {
+      throw new Error(
+        `anomalies/${a.id as string}: unknown signature '${String(signature)}' — ` +
+          `it must be one of the generic classes a detector can produce`,
+      )
+    }
+    if (declared === undefined || declared === null) {
+      // No signature declared: the class is being used as the signature, so it
+      // has to be a generic class too.
+      if (!ANOMALY_CLASSES.includes(cls as AnomalyClass)) {
+        throw new Error(`anomalies/${a.id as string}: unknown class '${cls}'`)
+      }
     }
 
     const manifold = a.manifold as Manifold
@@ -138,6 +177,7 @@ function validateSet(rawSet: unknown): AnomalySet {
     return {
       id: a.id as string,
       class: cls,
+      signature,
       manifold,
       position: a.position as [number, number, number],
       halfExtents: a.halfExtents as [number, number, number],

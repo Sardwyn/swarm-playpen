@@ -198,6 +198,7 @@ describe('Stage F precondition - the volumetric manifold is not vacuous', () => 
       const atticDefect: Anomaly = {
         id: 'ta-06',
         class: 'thermal_anomaly',
+        signature: 'thermal_anomaly',
         manifold: 'volumetric',
         position: [-4.2, 3.0, 0.2],
         halfExtents: [0.7, 0.35, 0.7],
@@ -229,6 +230,7 @@ describe('Stage F precondition - the volumetric manifold is not vacuous', () => 
         ...{
           id: 'probe-a',
           class: 'thermal_anomaly',
+          signature: 'thermal_anomaly',
           manifold: 'ground',
           position: [-4.2, 0.0, 0.2],
           halfExtents: [0.7, 0.35, 0.7],

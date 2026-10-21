@@ -30,6 +30,7 @@ import {
   yachtTruth,
   yachtForm,
   yachtAssumptions,
+  marineTaxonomy,
   YACHT_SPAWN,
   YACHT_INCHWORM_HOME,
 } from '../sim/world/yacht-sim.ts'
@@ -321,12 +322,38 @@ side.innerHTML = `
           .map(
             (v) =>
               `<p class="miss ${v.kind === 'ARCHITECTURE' ? 'arch' : 'det'}">` +
-              `<b>${v.id}</b> — ${v.kind}<br>${v.detail}` +
+              `<b>${v.id}</b> — ${v.cls}<br><span class="sig">${v.signature}</span><br>${v.detail}` +
               (v.reason === undefined ? '' : `<br>${v.reason}`) +
               `</p>`,
           )
           .join('')
   }
+
+  <h3>Reading, or cause</h3>
+  <p class="sub">The instrument produces a reading. A surveyor produces a cause. These are not the same claim, and the report never makes the second one.</p>
+  <table>
+    ${marineTaxonomy.signatures
+      .map(
+        (s) =>
+          `<tr><td>${s.id}</td><td class="det">${s.causes.length} causes &middot; ${
+            s.separable ? 'separable' : 'not separable'
+          }</td></tr>`,
+      )
+      .join('')}
+  </table>
+  <p class="sub">A humidity anomaly of undetermined cause may be ${marineTaxonomy.signatures
+    .find((s) => s.id === 'moisture_leak')!
+    .causes.join(', ')
+    .replace(/_/g, ' ')}. No single measurement separates them.</p>
+
+  <h3>What the swarm cannot see</h3>
+  ${marineTaxonomy.classes
+    .filter((c) => c.observable === 'not_observable')
+    .map(
+      (c) =>
+        `<p class="miss arch"><b>${c.docRef} ${c.name}</b><br>${c.note}</p>`,
+    )
+    .join('')}
 
   <h3>The apertures</h3>
   <table>
