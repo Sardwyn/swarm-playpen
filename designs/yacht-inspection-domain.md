@@ -525,6 +525,7 @@ competitor, our channel, and our first design partner.*
 | `test/world/domain-genericity.test.ts` | Renaming every fault changes nothing; a reading is only credited on its own manifold. |
 | `scripts/diag-match.ts` | Why a finding matched the fault it matched: distance, extent overlap, manifold. |
 | `scripts/diag-air.ts` | The air proxy at the engine bay vent, measured against the detector's gate. |
+| `designs/yacht-brief.md` | The one-page brief for the people who can answer the question. Three minutes long, and it states what the instrument cannot do as well as what it can. |
 
 **One content file.** The parallel regions model is gone. The vessel is a content
 file in the house's own schema, the oracle is a separate file as it is for the house,
