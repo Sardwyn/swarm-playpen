@@ -364,16 +364,24 @@ function makeReachingPerson(colour: number): THREE.Group {
     return mesh
   }
 
-  g.add(limb([0.62, 0.06, 0.1], [0.22, 0.06, 0.1], 0.075))
-  g.add(limb([0.62, 0.06, -0.1], [0.22, 0.06, -0.1], 0.075))
-  g.add(limb([0.62, 0.06, 0.1], [0.6, 0.46, 0.1], 0.08))
-  g.add(limb([0.62, 0.06, -0.1], [0.6, 0.46, -0.1], 0.08))
-  g.add(limb([0.6, 0.46, 0], [0.2, 0.62, 0], 0.15))
-  g.add(limb([0.22, 0.62, 0.11], [0.14, 0.2, 0.08], 0.06))
-  g.add(limb([0.22, 0.62, -0.11], [0.0, 0.04, -0.03], 0.06))
+  // Kneeling, leaning over the hole. The proportions are a kneeling adult's:
+  // shin 0.42, thigh 0.43, hip to shoulder 0.53, head 0.23 across. The first
+  // version had a 0.42 torso on a 0.45 shin, which read as a child.
+  g.add(limb([0.66, 0.055, 0.1], [0.24, 0.055, 0.1], 0.08)) // shin
+  g.add(limb([0.66, 0.055, -0.1], [0.24, 0.055, -0.1], 0.08)) // shin
+  g.add(limb([0.66, 0.055, 0.1], [0.64, 0.48, 0.1], 0.085)) // thigh
+  g.add(limb([0.66, 0.055, -0.1], [0.64, 0.48, -0.1], 0.085)) // thigh
+  g.add(limb([0.64, 0.48, 0], [0.14, 0.66, 0], 0.15)) // torso, leaning forward
+  g.add(limb([0.14, 0.66, 0], [0.07, 0.75, 0], 0.055)) // neck
+  g.add(limb([0.18, 0.64, 0.13], [0.44, 0.05, 0.18], 0.06)) // arm, braced on the deck
+  // The other arm goes down through the hole. The hand is below the deck line,
+  // which is the whole point of the figure.
+  g.add(limb([0.18, 0.64, -0.1], [0.08, 0.28, -0.08], 0.06))
+  g.add(limb([0.08, 0.28, -0.08], [0.0, -0.06, -0.05], 0.055))
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), material)
-  head.position.set(0.12, 0.76, 0)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), material)
+  head.position.set(0.02, 0.85, 0)
+  head.scale.set(1, 1.1, 0.92)
   g.add(head)
 
   return g

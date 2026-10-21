@@ -33,7 +33,7 @@ for damp.** That is what a surveyor does with a void.
 
 So the benchmark is not "can a robot go where a person goes". It is:
 
-> **Can the instrument do something a person's arm can do?**
+> **Can the instrument do something a person's arm and a light can do?**
 
 Our swarm cannot. It cannot get its sensor within 340 mm of the hole. If that
 holds on a real boat, then there is a class of finding that nobody can produce
