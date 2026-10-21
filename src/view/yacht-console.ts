@@ -191,6 +191,11 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
   let historyBuilt = false
   let history: number[] = []
 
+  // Where each machine was last time, so a machine with no job assigned can
+  // still be reported as MOVING rather than IDLE. The sim's agents sit between
+  // jobs, and a machine that is plainly working should not be labelled idle.
+  const lastPosition = new Map<string, { x: number; z: number }>()
+
   // -- the event stream keeps the last N lines.
   let eventCursor = 0
   let lastEventText: string | null = null
@@ -340,11 +345,19 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
         pct < 0.12 ? '#ff5f56' : pct < 0.35 ? '#ffb454' : (AGENT_META[a.cls]?.colour ?? '#4fd1c5')
       const pctEl = card.root.querySelector('.apct') as HTMLElement
       pctEl.textContent = `${(pct * 100).toFixed(0)}%`
+
+      const previous = lastPosition.get(a.id)
+      const moved =
+        previous === undefined ? false : Math.hypot(a.x - previous.x, a.z - previous.z) > 0.01
+      lastPosition.set(a.id, { x: a.x, z: a.z })
+
       card.state.textContent = a.faulted
         ? 'FAULTED — BATTERY EXHAUSTED'
         : a.currentJobType !== null
           ? `${a.currentJobType.replace(/_/g, ' ').toUpperCase()}`
-          : 'IDLE'
+          : moved
+            ? 'MOVING — NO JOB HELD'
+            : 'HOLDING STATION'
       card.state.className = a.faulted ? 'astate bad' : 'astate'
     }
 

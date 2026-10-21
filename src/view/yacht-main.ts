@@ -248,12 +248,16 @@ function showAt(index: number): void {
       .filter((a) => a.id !== shot.follow)
       .map((a) => `${a.id} ${(a.battery * 100).toFixed(0)}%`)
       .join(' · ')
+    const subjectTask =
+      subject === undefined
+        ? ''
+        : subject.currentJobType !== null
+          ? subject.currentJobType.replace(/_/g, ' ')
+          : 'working'
     capLive.textContent =
       subject === undefined
         ? others
-        : `${subject.id} · ${subject.currentJobType !== null ? subject.currentJobType.replace(/_/g, ' ') : 'idle'} · ${(
-            subject.battery * 100
-          ).toFixed(0)}% battery${others === '' ? '' : ` · ${others}`}`
+        : `${subject.id} · ${subjectTask} · ${(subject.battery * 100).toFixed(0)}% battery${others === '' ? '' : ` · ${others}`}`
   }
   updateTags(frame)
 }
