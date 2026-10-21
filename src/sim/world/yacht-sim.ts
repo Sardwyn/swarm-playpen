@@ -110,6 +110,10 @@ export const yachtPrincipal = (
 export const yachtForm: HullForm = buildHullForm(
   yachtPrincipal,
   (yachtJson as unknown as { profiles: Parameters<typeof buildHullForm>[1] }).profiles,
+  // The grid's floor is the hull's lowest point, so the distance from the boat's
+  // baseline down to the engine room sole is read off the content rather than
+  // written down here.
+  -(yachtJson as unknown as { bounds: { minY: number } }).bounds.minY,
 )
 
 /** The assumptions the whole vessel rests on. Printed in the panel. */

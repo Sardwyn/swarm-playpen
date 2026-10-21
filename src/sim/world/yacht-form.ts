@@ -91,6 +91,29 @@ export type Station = {
 export type HullForm = {
   readonly principal: Principal
   readonly stations: readonly Station[]
+  /**
+   * How far the boat's baseline sits below the simulation's y = 0, metres.
+   *
+   * The hull form is measured from the boat's own baseline — the lowest point of
+   * the keel — because that is how a lines plan is dimensioned. The simulation
+   * is dimensioned from the engine room sole, because that is where the robots
+   * are. The two are 1.75 m apart on this vessel, and the conversion is:
+   *
+   *     sim y = boat y - baselineOffsetM
+   *
+   * The viewer was getting this wrong, and getting it wrong in the direction
+   * that flatters the picture: the whole hull was drawn 1.75 m too high, so the
+   * boat floated above the waterline and the forward stringer void — whose floor
+   * is the hull's own inner surface — was drawn with its floor *above* its
+   * ceiling. The void collapsed to a ribbon, and the fault that the whole
+   * product is about was drawn underneath it, in the sea.
+   *
+   * So the offset is declared, carried on the form, and applied once. It is
+   * derived from the content file's own bounds rather than written down here as
+   * a number, because a number written down here would eventually disagree with
+   * the content and nobody would notice.
+   */
+  readonly baselineOffsetM: number
 }
 
 /** Number of profile samples. Eleven: u = 0.0, 0.1, ... 1.0. */
@@ -115,7 +138,11 @@ export function sampleProfile(values: readonly number[], u: number): number {
   return values[i]! * (1 - f) + values[i + 1]! * f
 }
 
-export function buildHullForm(principal: Principal, profiles: Profiles): HullForm {
+export function buildHullForm(
+  principal: Principal,
+  profiles: Profiles,
+  baselineOffsetM = 0,
+): HullForm {
   const stations: Station[] = []
   for (let i = 0; i < PROFILE_SAMPLES; i++) {
     const u = i / (PROFILE_SAMPLES - 1)
@@ -139,7 +166,7 @@ export function buildHullForm(principal: Principal, profiles: Profiles): HullFor
       deadriseDeg,
     })
   }
-  return { principal, stations }
+  return { principal, stations, baselineOffsetM }
 }
 
 /** The station at an arbitrary longitudinal position, interpolated. */
@@ -200,6 +227,23 @@ export function hullBottomY(form: HullForm, u: number, z: number): number {
  *
  * A transverse offset greater than this is outside the boat.
  */
+/**
+ * The hull's inner surface, in the simulation's coordinates.
+ *
+ * The same surface as `hullBottomY`, moved down by the baseline offset. The
+ * viewer draws in simulation coordinates because that is where the rooms, the
+ * voids and the robots are; the form is dimensioned from the keel because that
+ * is how the boat is drawn.
+ */
+export function hullBottomYSim(form: HullForm, u: number, z: number): number {
+  return hullBottomY(form, u, z) - form.baselineOffsetM
+}
+
+/** The sheer, in the simulation's coordinates. */
+export function hullTopYSim(form: HullForm, u: number): number {
+  return hullTopY(form, u) - form.baselineOffsetM
+}
+
 export function hullHalfBreadthAt(form: HullForm, u: number): number {
   return stationAt(form, u).sheerZ
 }

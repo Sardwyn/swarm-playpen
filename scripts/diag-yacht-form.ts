@@ -15,10 +15,10 @@
  *   ground bot across             340 mm   (radius 0.17 m)
  *   hover bot rotor span          240 mm, and it needs 400 mm of clearance
  *   inchworm                      80 mm, but confined to conduits
- *   a person                      can get through a 200 mm hatch
+ *   a person's arm                 goes through a 200 mm hatch; a body does not
  *
- * So the void is unreachable by the swarm, and a person can reach it. That is the
- * product statement, and it is four numbers long.
+ * So the void is unreachable by the swarm, and a person can put a hand and a
+ * torch into it. That is the product statement, and it is four numbers long.
  *
  * Run: `npm run diag:yacht`
  */
@@ -129,10 +129,10 @@ console.log(
     `needs ${hoverClearanceM.toFixed(2)} m of clearance`,
 )
 console.log(`  inchworm                       ${Math.round(INCHWORM.radius * 2000)} mm, but confined to conduits`)
-console.log(`  a person                       can get through a ${clearMm} mm hatch`)
+console.log(`  a person                       goes through a ${clearMm} mm hatch; a body does not`)
 console.log('')
 console.log(
-  `  so the stringer void is unreachable by the swarm, and a person can reach it.`,
+  `  so the stringer void is unreachable by the swarm, and a person can put a hand in it.`,
 )
 console.log(`  the crawler's home port is '${YACHT_INCHWORM_HOME}'.`)
 

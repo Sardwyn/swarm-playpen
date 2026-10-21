@@ -978,9 +978,44 @@ The contract between sim, content and viewer. Any change here is a version bump.
 
   ANOMALIES            21 across 6 classes
   COVERAGE_THRESHOLD   negative claims require â‰¥85% regional coverage
-  IOU_MATCH            0.3
+  MATCH_DISTANCE_M     3.0
   CONFIDENCE_MIN       0.6 to satisfy a job's expectedOutput
 ```
+
+### 10.1 IOU_MATCH, retired
+
+`IOU_MATCH 0.3` was declared here from the start and **no code ever read it**. It
+was found while building the yacht domain, when a fault in the forward stringer
+void came back as FOUND on the strength of a humidity reading taken on the engine
+room sole, two metres away and in a different manifold.
+
+Reading it would not have fixed that. It would have broken everything: measured
+on the yacht run, the extent overlap between a finding and the fault it found was
+**0.025 for a crawler sitting 0.00 m from a fuel-line obstruction**, because the
+finding's box is a bore and the fault's box is a 500 mm lump of debris. IoU
+measures *delineation*, not *detection*. The detectors here do not delineate:
+the humidity detector localises to the agent because it has no bearing, so its
+box is a guess about how far away the source is.
+
+So the threshold that actually gates a match is the one the detectors can
+satisfy â€” distance â€” and it is now declared in the content file and read, as
+`MATCH_DISTANCE_M`. The extent overlap is still computed and still reported, as
+the measure of delineation quality that it actually is.
+
+Two rules came out of it, and both are now tests:
+
+- **A parameter that no code reads is not a parameter.** If it is not going to
+  gate anything, it should not be in the constants block pretending to.
+- **A name that can move a number is doing physics.** The field builder switched
+  on the *name* of a fault rather than on its physical signature, so renaming a
+  fault silently deleted the field it produced. `test/world/domain-genericity.test.ts`
+  renames every fault to a nonsense string and asserts the run is byte-identical.
+
+A third rule, from the same round: **a candidate may only be credited to a fault
+on the manifold it was found on.** The manifold is where the agent lives and
+where its sensor is valid. A reading taken on the floor is not evidence about
+the void above it, and an obstruction found inside a 60 mm fuel line is not a
+blocked air vent in the room.
 
 ---
 
@@ -1684,7 +1719,7 @@ the wrong reason.
 ### 11.24 A false zero in the safety monitor, found four stages late
 
 Stage E part two. The gate reads *"Inchworm findings hand off at a port and get
-confirmed"*, and the honest position is that this section does not deliver it — it
+confirmed"*, and the honest position is that this section does not deliver it ï¿½ it
 delivered three bugs that were standing underneath the attempt.
 
 #### The stranded detector had never run
@@ -1700,12 +1735,12 @@ noticing that a robot has stopped moving.
 It was found by accident, which is the worst way to find it. A field change perturbed
 the trajectory and the ground bot wedged in a gap at a byte-identical pose for **2500
 ticks**; coverage froze at **63.83%** against a 100% baseline, and stranded still
-read 0. So the monitor's silence was not evidence of a healthy swarm — it was the
-absence of a monitor. **That is the §11.22 bug class one level up, and it had been
+read 0. So the monitor's silence was not evidence of a healthy swarm ï¿½ it was the
+absence of a monitor. **That is the ï¿½11.22 bug class one level up, and it had been
 sitting in the one place a false zero does the most damage.**
 
 Fixed: a real counter on AgentState, a reachable threshold (STALL_LIMIT_TICKS =
-100, ten seconds), and recovery that *changes the situation* — abandon the plan,
+100, ten seconds), and recovery that *changes the situation* ï¿½ abandon the plan,
 release the job as failed, reset the counter. Replanning from the same pose produces
 the same path through the same gap, which is exactly how the agent walked into it for
 2500 ticks.
@@ -1714,7 +1749,7 @@ the same path through the same gap, which is exactly how the agent walked into i
 trajectory produces none and a wedge that only happens on one seed is a wedge that
 will silently stop happening. It asserts the counter accumulates, that gent.stranded
 fires, that the job is released rather than abandoned, and that **the parity hash did
-not move** — a fix to a monitor must not change the simulation.
+not move** ï¿½ a fix to a monitor must not change the simulation.
 
 #### Two accounting holes found alongside it
 
@@ -1722,13 +1757,13 @@ not move** — a fix to a monitor must not change the simulation.
   reading 0. A field that exists, is printed, and is always zero.
 - **Unfinished work vanished at mission end.** A crawler part-way down a 28 m conduit
   at tick 3000 left its job ctive with nobody holding it. closeOutJobs now marks
-  it ailed — announced work the swarm could not finish in the time given is not the
+  it ailed ï¿½ announced work the swarm could not finish in the time given is not the
   same as work never announced, and the tally is where that shows.
 
 #### A change I made, measured, and reverted: manifold-scoping the fields
 
 While looking for the wedge I found that uildField fed *every* anomaly into the
-ground fields regardless of manifold, and I fixed it — on the reasoning that a
+ground fields regardless of manifold, and I fixed it ï¿½ on the reasoning that a
 blockage inside a sealed duct should not raise the VOC proxy in the room above it.
 
 It cost the baseline. Measured, properly, by relabelling every anomaly as
@@ -1740,8 +1775,8 @@ ground-manifold so the filter could not reject it:
 | max temperature change | **11.3 K** |
 | pest_indicator recall | 1.00 ? **0.00** |
 
-Four authored anomalies are labelled constrained — ml-04, v-02, v-03,
-pi-02 — and **that is simply where they were put**, while their thermal signature
+Four authored anomalies are labelled constrained ï¿½ ml-04, v-02, v-03,
+pi-02 ï¿½ and **that is simply where they were put**, while their thermal signature
 is what the ground-plane sensors were authored to detect. manifold records where a
 defect *physically is*, not what can *sense* it.
 
@@ -1762,14 +1797,14 @@ Two lessons, both earned:
    Measure one edit at a time, even when the edits are individually small and even
    when you are confident.
 
-#### Failure handoff (spec §6.4 mechanism 3), and a hazard it creates
+#### Failure handoff (spec ï¿½6.4 mechanism 3), and a hazard it creates
 
 Released a stranded agent's job and excluded it from that region for 30 s, so the
 frontier policy cannot hand the same unreachable gap straight back.
 
 Measured, and the first version was actively harmful: **a global ban with one agent
 benched the only robot for half a minute.** Jobs completed 31 ? 17, starvation 9 ? 47
-— every one of those extra failures caused by the *recovery*, not the fault.
+ï¿½ every one of those extra failures caused by the *recovery*, not the fault.
 
 So the exclusion is scoped to the region (the knowledge being encoded is "this robot
 cannot get through *there*") and is skipped entirely when withholding the agent would
@@ -1907,27 +1942,27 @@ Blocking nothing at Stage A; each needs an answer before the stage named.
     a manifold, the auction's entire cost is being paid for an unmeasured benefit.
 ---
 
-### 11.25 Capability handoff — the second half of Stage E's gate
+### 11.25 Capability handoff ï¿½ the second half of Stage E's gate
 
 The gate reads *"Inchworm findings hand off at a port and get confirmed."* This is the
 part that was missing, and building it turned up a constraint I had removed myself.
 
 #### I had granted the crawler a sensor it does not have
 
-sense.humidity was on INCHWORM from the first version of Stage E. Spec §3.2's
+sense.humidity was on INCHWORM from the first version of Stage E. Spec ï¿½3.2's
 capability list is crawl.small, crawl.medium, sense.depth, sense.imu,
-map.graph, map.merge — and humidity is not on it.
+map.graph, map.merge ï¿½ and humidity is not on it.
 
 The symptom was benign: a crawler reading a field it had no business reading, and
 raising nothing, because the reading was sampled at the origin and discarded. The
 cost was not that. It was that a scalar sensor would have let the crawler **partly
-corroborate its own findings**, so spec §6.4's escalation would never have fired, and
+corroborate its own findings**, so spec ï¿½6.4's escalation would never have fired, and
 the constraint that makes capability handoff necessary would have been quietly
 removed by a change that looked like a missing feature.
 
 Removed, with the reason kept inline in 	ypes.ts so the next reader does not put it
 back. What the crawler has is sense.depth, so **the only finding it can raise is
-geometric** — something is in the way — and it cannot say what.
+geometric** ï¿½ something is in the way ï¿½ and it cannot say what.
 
 #### The chain, end to end
 
@@ -1958,9 +1993,9 @@ Measured, with the crawler homed in the utility room:
 
 #### The confirmation rate is 0%, and it is structural
 
-Not a tuning failure, and — this is the part that matters — **not a broken test**.
+Not a tuning failure, and ï¿½ this is the part that matters ï¿½ **not a broken test**.
 There is a test that proves the corroboration logic can confirm when the evidence
-exists (can confirm when the evidence is there — so the 0% is about the world, not the
+exists (can confirm when the evidence is there ï¿½ so the 0% is about the world, not the
 code). Without it, "the rate is 0%" and "the mechanism is broken" are the same
 sentence, and only one of them is true.
 
@@ -1969,11 +2004,11 @@ Two independent reasons, both structural:
 1. **The corroboration test reads thermal candidates, and in-bore obstructions have no
    thermal signature.** They are authored with sourceStrength: 0 because an
    obstruction is geometry, not a heat source. Authoring them with a signature would
-   have moved the ground thermal field and broken the parity pin — and would have
+   have moved the ground thermal field and broken the parity pin ï¿½ and would have
    improved the headline number by changing the world so the answer came out right.
 2. **The only other signal a blockage produces is stagnant air, and detectBlockedVent
    only checks it at air registers.** Port.kind marks all five conduit entries
-   conduit_entry, deliberately (§11.23), because inferring "ventilation register"
+   conduit_entry, deliberately (ï¿½11.23), because inferring "ventilation register"
    from "one side is ground" made the detector fire at a boiler flue one metre from a
    real blocked vent.
 
@@ -1983,13 +2018,13 @@ defect is 6.5 m away behind a sealed duct wall, and nothing in a room is a senso
 that.
 
 **Open question, recorded not resolved:** should a conduit entry count as a *partial*
-air register — a place where a blockage does cause measurable stagnation — while still
+air register ï¿½ a place where a blockage does cause measurable stagnation ï¿½ while still
 being excluded from ventilation *register* checks? That is a real modelling decision,
 and this project's answer to it must not be "raise the number".
 
 #### The oracle grew by three, and the ground baseline did not move
 
-ob-01, ob-02, ob-03 — three in-bore blockages, all with sourceStrength: 0, all
+ob-01, ob-02, ob-03 ï¿½ three in-bore blockages, all with sourceStrength: 0, all
 placed far from any ground vent port. The reference run still hashes to **2923fbf7**
 with tick 3000, coverage 100.00%, jobs 40/31/9 and all six per-class metrics identical.
 
@@ -2006,14 +2041,14 @@ every ground measurement.
    its bid window. A rate over re-decisions is not a rate.
 2. **The no-silent-detector guard could not see a crawler detector at all.** It runs
    ground-only, so constrained.obstruction emitted nothing. The tempting fix was to
-   add it to EXPECTED_SILENT — which would have been wrong twice over, since an
+   add it to EXPECTED_SILENT ï¿½ which would have been wrong twice over, since an
    allow-list entry means "this emits nothing and that is fine", and this detector
    works. Instead every detector now **declares the scenario it needs** and is checked
    against a run that has those agents, with the declaration itself asserted
    load-bearing (a crawler detector must be silent without a crawler *and* fire with
    one, or the declaration is decoration).
 3. **Three S3 assertions and two inchworm assertions encoded the previous stage's
-   state** — "holds 21 anomalies", "the crawler raises no findings". Both were true
+   state** ï¿½ "holds 21 anomalies", "the crawler raises no findings". Both were true
    while the crawler had no instrument and both are false now. Updated rather than
    deleted, and the replacements assert something stronger: the crawler contributes
    nothing to the *ground* manifold, and everything it does raise is geometric,
@@ -2026,7 +2061,7 @@ every ground measurement.
 
 ### 11.26 The kill condition fired, and the scoring function is gone
 
-The scenario this project was built around. Spec §9.4 pre-registered the condition:
+The scenario this project was built around. Spec ï¿½9.4 pre-registered the condition:
 **if mean allocation regret is under 2% across 20 seeds, delete the auction and keep
 greedy.** It has now been measured.
 
@@ -2289,9 +2324,9 @@ against. Four defects, none of which any test had caught:
 
 | defect | what building on it would have produced |
 | --- | --- |
-| **no attic anywhere** — all 6 rooms 2.5 m, zero obstacles with maxY below 2.0 | the hover bot's 1.0 m ceiling clearance **never binds**. Spec open question 1 ("unreachable, or just expensive?") becomes unanswerable, and the agent's single most important number is decoration |
+| **no attic anywhere** ï¿½ all 6 rooms 2.5 m, zero obstacles with maxY below 2.0 | the hover bot's 1.0 m ceiling clearance **never binds**. Spec open question 1 ("unreachable, or just expensive?") becomes unanswerable, and the agent's single most important number is decoration |
 | shaft-cap-garage at **y = 4.0** in a world whose maxY was 2.6 | a port *outside the world*, declared volumetric-to-volumetric, carried through all of Stage A-E. Routing through it flies into empty space and nothing fails |
-| zero overhead geometry — no obstacle with minY above 1.5 | a volumetric sensor looking up sees only a room's maxY. A ceiling raster has nothing to raster |
+| zero overhead geometry ï¿½ no obstacle with minY above 1.5 | a volumetric sensor looking up sees only a room's maxY. A ceiling raster has nothing to raster |
 | only 1 of 3 volumetric defects had an eligible sensor | ml-03 needs sense.humidity (no volumetric agent has it); sc-02 has sourceStrength: 0 and needs the deferred RGB path |
 
 The first is the dangerous one, and it is the same failure this project has now found
@@ -2300,7 +2335,7 @@ five times: **a thing that returns nothing looks exactly like a clean result.** 
 opposite of the truth.
 
 Fixed: world maxY 2.6 -> 3.6; an ttic room at y 2.6-3.5 giving **0.90 m** headroom
-over the hall, against a 1.00 m clearance. The ceiling between them is *implicit* — rooms
+over the hall, against a 1.00 m clearance. The ceiling between them is *implicit* ï¿½ rooms
 stop at 2.5, the attic starts at 2.6, so the 0.10 m slab is in no room and is therefore
 solid. A hatch-opening room punches a 1.0 x 1.0 m hole through it, and
 hatch-attic-stair moved from [4.0, 0.0, 3.4] (a hatch at floor level in a house with no
@@ -2313,8 +2348,8 @@ because a bot cannot use both the hall run and the attic run.
 
 #### The finding: the volumetric manifold has no scalar field, so nothing on it is private
 
-I authored 	a-06 — an attic solar-gain thermal defect, 13 K at y = 3.0, named in spec
-§4.4's own 	hermal_anomaly list, squarely inside the low run. It sat in the attic and
+I authored 	a-06 ï¿½ an attic solar-gain thermal defect, 13 K at y = 3.0, named in spec
+ï¿½4.4's own 	hermal_anomaly list, squarely inside the low run. It sat in the attic and
 was supposed to be the thing that made the clearance cost something.
 
 Its effect on the pinned reference run:
@@ -2329,14 +2364,14 @@ Its effect on the pinned reference run:
 **A defect 3 m above the hall floor, detected by a robot that never left the floor.**
 
 The cause is structural. The scalar fields are **ground-plane projections that ignore y**
-(spec §5.2). §12 already records that manifold-scoping them was tried and reverted
+(spec ï¿½5.2). ï¿½12 already records that manifold-scoping them was tried and reverted
 because it rewrote 1034 of 1536 temperature cells and took pest_indicator recall from
 1.00 to 0.00. So a defect authored on the volumetric manifold writes into the same field
 the ground sensors read. Two defects 3 m apart vertically produce **byte-identical
 fields**, which is now a test.
 
-I removed 	a-06. Then I verified that removal restored the baseline exactly — hash back
-to 8f9dfce8 — which also established that the attic, the bounds change, the port move
+I removed 	a-06. Then I verified that removal restored the baseline exactly ï¿½ hash back
+to 8f9dfce8 ï¿½ which also established that the attic, the bounds change, the port move
 and the port deletion are **all inert** for the ground manifold. Only the defect moved
 anything, and it moved it because it is invisible from above.
 
@@ -2344,7 +2379,7 @@ anything, and it moved it because it is invisible from above.
 
 The consequence is narrow and useful: **an attic thermal defect does not justify a hover
 bot, because the ground bot sees it through the floor.** So the hover bot's unique
-contribution is ceiling **coverage** — surveying space that must be flown through — not
+contribution is ceiling **coverage** ï¿½ surveying space that must be flown through ï¿½ not
 ceiling **detection**. Those are different claims, and only the second was tacitly
 assumed.
 
@@ -2373,7 +2408,7 @@ justifies a 4.4x endurance penalty; it does not get to place the payoff first.
 
 ### 11.29 Stage F part one: the volumetric manifold, and three bugs of my own
 
-The content precondition (§11.28) made the clearance constraint testable. Building the
+The content precondition (ï¿½11.28) made the clearance constraint testable. Building the
 manifold on top of it turned up a model error and three bugs, all of which would have made
 the clearance look cheaper or the routes look better than they are.
 
@@ -2394,7 +2429,7 @@ Rooms do not overlap at their doorways, so the gap between two rooms is in neith
 every room was sealed inside its own walls and the hover bot could not leave the hall.
 
 The 2-D grid does the opposite: uildGroundGrid stamps obstacles and then calls
-illFreeSpace, so **free space is the bounding box and walls do all the separating** —
+illFreeSpace, so **free space is the bounding box and walls do all the separating** ï¿½
 doorways are gaps in the wall boxes, which is exactly how house-01 authors them
 (wall-w-bath-a stops at z = -3, wall-w-bath-b resumes at z = -2). Volumetric now does
 the same, for the reason that matters: if two manifolds disagreed about where walls are,
@@ -2403,7 +2438,7 @@ no comparison between them would mean anything.
 A consequence worth recording: **nothing in the codebase reads house.rooms except
 validation.** house-01 is one open volume with partial wall furniture, and the room list
 describes an intention the geometry does not enforce. So an attic cannot be authored as a
-room — it has to be authored as obstacles. That is what ceiling-a..ceiling-d are: a
+room ï¿½ it has to be authored as obstacles. That is what ceiling-a..ceiling-d are: a
 ceiling slab at y 2.5-2.6 in four pieces around a 1.0 x 1.0 m hatch, with the four
 exterior walls raised to 3.5 to enclose the roof space.
 
@@ -2412,7 +2447,7 @@ attic reachable through the hatch and back out again.
 
 #### Bug 1: body clearance reserved room that was not there
 
-olumetricPassability dilated by the rotor radius but rejected only VOXEL_OCCUPIED —
+olumetricPassability dilated by the rotor radius but rejected only VOXEL_OCCUPIED ï¿½
 authored obstacles. Room and world boundaries are not obstacles; under this model they are
 simply "inside bounds", so nothing stopped the bot claiming clearance through the side of
 the house.
@@ -2432,7 +2467,7 @@ surfaces that are not there. A room's edge is a wall whether or not an obstacle 
 
 econstruct3 and the heuristic decomposed the flat index with
 iz = (idx - ix) / nx / ny, which is not an integer. Steps came out at **1.607 m** where
-the longest legal 26-connected move is sqrt(3) x 0.10 = 0.173 m — so the "path" was a
+the longest legal 26-connected move is sqrt(3) x 0.10 = 0.173 m ï¿½ so the "path" was a
 sequence of teleports. With Math.floor, steps are 0.141 m and every waypoint is passable.
 
 #### Bug 3: eached was a claim about something other than reaching the goal
@@ -2441,7 +2476,7 @@ Two ways it lied:
 
 - A goal outside the world was clamped into the grid, a passable voxel found beside it, and
   eached: true returned with a 5.60 m path **into empty space**.
-- A goal inside geometry — a job authored in a wall — got the nearest passable voxel and
+- A goal inside geometry ï¿½ a job authored in a wall ï¿½ got the nearest passable voxel and
   still reported eached: true, which would let the arrival test mark the job complete
   on arrival next door.
 
@@ -2449,10 +2484,10 @@ Now: an out-of-world goal returns no path, and eached means the goal voxel was 
 and nothing weaker.
 
 **The 2-D planner had the same latent shape** and was fixed the same way. That the parity
-pin stayed at 8f9dfce8 across the fix is the proof it was inert rather than live — which
+pin stayed at 8f9dfce8 across the fix is the proof it was inert rather than live ï¿½ which
 is exactly why it needed a guard rather than an assumption.
 
-#### Clearance binds as a cost, not a wall — which answers spec open question 1
+#### Clearance binds as a cost, not a wall ï¿½ which answers spec open question 1
 
 Open question 1 asks whether a 1.0 m ceiling clearance makes a low attic "unreachable in
 practice, or just expensive". Measured, not assumed:
@@ -2461,8 +2496,8 @@ practice, or just expensive". Measured, not assumed:
 - HOVER_CLEARANCE_M is 1.00 m.
 
 So the bot **can fly into the attic**, and clearance then makes it expensive. That is the
-spec's own reading — §3.3 lists "maintain altitude in a 0.9 m attic without cost penalty"
-under *Cannot*, which permits entry and charges for it — and it is why
+spec's own reading ï¿½ ï¿½3.3 lists "maintain altitude in a 0.9 m attic without cost penalty"
+under *Cannot*, which permits entry and charges for it ï¿½ and it is why
 olumetricPassability deliberately does not consult the clearance. Folding it into
 occupancy would have answered the question by fiat before anything was measured.
 
@@ -2471,16 +2506,16 @@ occupancy would have answered the question by fiat before anything was measured.
 MinHeap moved from star.ts to 
 av/heap.ts, imported by both planners. Copying it
 for the 3-D case is how two implementations of a tie-break drift apart, and a tie-break is
-precisely the thing that must not drift — the same reasoning as the existing
+precisely the thing that must not drift ï¿½ the same reasoning as the existing
 
 o-render-imports boundary test, applied at the size where it actually bit. Parity held
 at 8f9dfce8 through the move.
 
 #### The ground baseline did not move, and that was verified rather than assumed
 
-Every change here is volumetric-only, so the pinned reference run should be untouched —
+Every change here is volumetric-only, so the pinned reference run should be untouched ï¿½
 8f9dfce8, tick 3000, coverage 100.00%, jobs 40/31/9, energy 1.0665 Wh. It is. Worth
-stating that the §11.28 ceiling work *did* change the baseline (via 	a-06) and this did
+stating that the ï¿½11.28 ceiling work *did* change the baseline (via 	a-06) and this did
 not, because the difference between those two outcomes is the whole reason the projection
 leak was worth finding.
 ---
@@ -2489,12 +2524,12 @@ leak was worth finding.
 
 #### What is modelled, and what is recorded as cut
 
-Spec §3.3 gives "full 6-DoF attitude". Implemented: **position and yaw controlled, plus a
+Spec ï¿½3.3 gives "full 6-DoF attitude". Implemented: **position and yaw controlled, plus a
 tracked tilt magnitude** the power model reads. The reduction is deliberate and is listed
-in §12:
+in ï¿½12:
 
 - Tilt is not decoration. Holding station under a low ceiling means fighting induced
-  downwash, and that cost is what decides whether the attic is *expensive* or impossible —
+  downwash, and that cost is what decides whether the attic is *expensive* or impossible ï¿½
   which is spec open question 1.
 - Not modelled: rotor mixing, aerodynamic cross-coupling, thrust-vector lag. A flight
   simulator would make the clearance cost emerge from the physics; here it is a stated
@@ -2509,11 +2544,11 @@ in §12:
 
 	hrust ? 1 / (1 - span / H), where H is the gap between the rotors and the ceiling. It
 needs no tuning constant because the physics supplies the shape, and it is unbounded exactly
-where the physics is — a rotorcraft cannot hover in a space its rotors do not fit.
+where the physics is ï¿½ a rotorcraft cannot hover in a space its rotors do not fit.
 HOVER_CLEARANCE_COST is a dial at 1.0, the pure model, so an experiment can scale it.
 
 **The first version divided by the height of the whole free run**, which charged the same
-penalty at 0.3 m and at 2.2 m in the same room — measured at a flat 9.6% everywhere. What
+penalty at 0.3 m and at 2.2 m in the same room ï¿½ measured at a flat 9.6% everywhere. What
 matters is where the downwash goes, which is *above*:
 
 | position | gap above | blockage | multiplier |
@@ -2526,7 +2561,7 @@ This makes the penalty something the bot can *avoid by flying lower*, which is w
 it into a decision rather than a location-dependent tax.
 
 **And the worst clearance in house-01 is not the attic.** Flying at 2.00 m in an ordinary
-2.50 m room leaves 0.50 m — tighter than the attic's 0.60 m — for a multiplier of 1.92
+2.50 m room leaves 0.50 m ï¿½ tighter than the attic's 0.60 m ï¿½ for a multiplier of 1.92
 against 1.67. The consequence for the thesis: **a "low-ceiling room" is the wrong thing to
 worry about. What matters is how high the bot flies, everywhere.** A planner routing by room
 name would have kept the bot low in the attic and let it climb in the living room, which is
@@ -2536,8 +2571,8 @@ exactly backwards.
 
 Registered before measuring:
 
-- **E1 — the hover bot cannot run out on a 300 s mission.** *Prior: near-certain.*
-- **E2 — therefore the endurance gate is not evaluable at the reference mission length.**
+- **E1 ï¿½ the hover bot cannot run out on a 300 s mission.** *Prior: near-certain.*
+- **E2 ï¿½ therefore the endurance gate is not evaluable at the reference mission length.**
 
 E1 is right about cruise and wrong in general, because the draw is altitude-dependent and
 the penalty is not gentle near a ceiling. Measured in the living room at full tilt:
@@ -2556,7 +2591,7 @@ is none at all.
 
 E2 is therefore also contradicted, and the correction is *better* than the prediction: **the
 gate is evaluable, it is just conditional on altitude rather than on the agent.** That is a
-more useful gate than the one registered, because it says something specific — an allocator
+more useful gate than the one registered, because it says something specific ï¿½ an allocator
 that keeps the hover bot below ~2.1 m is safe, and one that does not is not.
 
 Both are recorded as contradicted in stage-f-endurance.test.ts, with the prediction
@@ -2566,38 +2601,38 @@ paragraph kept intact above the corrected body so the two can be compared.
 
 At y = 2.2 m the gap is 0.30 m against a 0.24 m span, so blockage is 0.80 and the multiplier
 is 5.0. That is where 1/(1-b) stops being a small-disturbance correction. The numbers
-above 2.0 m should be read as "much worse", not as precision — and they are *not* smoothed,
+above 2.0 m should be read as "much worse", not as precision ï¿½ and they are *not* smoothed,
 because a fit that stayed gentle near b = 0.8 would have hidden the finding that the
 constraint bites at all, and the finding is the useful part.
 
 #### E3: endurance is respected by the capability filter, not by the ranking
 
-This answers the gate's literal wording, and it reconciles with §11.26 without contradiction:
+This answers the gate's literal wording, and it reconciles with ï¿½11.26 without contradiction:
 
-- §11.26 removed battery from the bid **ranking** because it measured inert. That was
+- ï¿½11.26 removed battery from the bid **ranking** because it measured inert. That was
   between two *identical* ground bots 10 m apart, neither of which could run out.
-- Spec §3.3's capability list has **no ground.drive**, so eligibility() refuses every
+- Spec ï¿½3.3's capability list has **no ground.drive**, so eligibility() refuses every
   ground-manifold job on capability alone. The allocator never spends the hover bot on
   travel it does not need to make, because it never lets it bid.
 
 A filter is a different mechanism from a ranking weight and a stronger one: a -1.0 weight
-could be outbid by proximity, a capability cannot. **So the property §11.26 removed as
-unearned is supplied here by a filter that was already there** — and the residual risk is
+could be outbid by proximity, a capability cannot. **So the property ï¿½11.26 removed as
+unearned is supplied here by a filter that was already there** ï¿½ and the residual risk is
 not allocation at all, it is altitude, which is the thing measured above.
 
 #### Two spec corrections, measured
 
-- **Spec §3.3 says the hover bot has "roughly 4.4x worse endurance" than the ground bot.
+- **Spec ï¿½3.3 says the hover bot has "roughly 4.4x worse endurance" than the ground bot.
   Measured: 4.70x.** 38 Wh / 36 W is 3800 s against 22 Wh / 98 W is 808 s. A 7% error,
   corrected rather than left standing next to a test that disagrees with it.
-- **Spec §5.4 says 0.10 m voxels**, and that is confirmed, but the clearance and dilation
+- **Spec ï¿½5.4 says 0.10 m voxels**, and that is confirmed, but the clearance and dilation
   together mean the bot needs **1.20 m of vertical room** (1.00 m clearance + 0.20 m of
   body reservation). The 0.90 m attic therefore has 0.50 m usable, which is why the clearance
   is a cost rather than a wall.
 
 #### The ban caught me
 
-stepHover used Math.hypot, which ADR-001 §2.3 bans in the sim core. The
+stepHover used Math.hypot, which ADR-001 ï¿½2.3 bans in the sim core. The
 	ranscendental boundary test failed on it, which is the test doing exactly the job it
 exists for on code written six stages after it was written. Replaced with hypot3 from
 math.ts. Worth noting as evidence that the boundary test keeps working on new files rather
@@ -2622,7 +2657,7 @@ failures that are hard to see:
 
 A bug worth recording because it produced **two sources of truth for one fact**. An up-ray in
 the attic returned *no hit*, so the depth sensor reported unlimited headroom in the one room
-whose headroom is the entire point — while clearanceAbove correctly said 0.60 m.
+whose headroom is the entire point ï¿½ while clearanceAbove correctly said 0.60 m.
 
 Cause: free space is ounds minus obstacles, so the top of the grid *is* the inside of the
 outer shell, and the shell is only partly authored as obstacles. The attic roof was the
@@ -2641,7 +2676,7 @@ hits an obstacle first. After the fix the two agree exactly at four probe height
 
 #### "Started inside a wall" now has its own answer
 
-A ray whose origin is already in non-air returned distance: 0 with ace: 'y' — the
+A ray whose origin is already in non-air returned distance: 0 with ace: 'y' ï¿½ the
 initial value, not a real face. That is indistinguishable from "the surface is right here",
 and a sensor that reports 0 m to everything is a bug that survives, because every downstream
 number still looks finite. ace gained an 'origin' member for exactly this case.
@@ -2651,10 +2686,10 @@ number still looks finite. ace gained an 'origin' member for exactly this case.
 | layer | volumetric? | why |
 | --- | --- | --- |
 | **geometry** | **yes** | altitude and range come from a 3-D raycast against real voxels. The ground bot cannot produce this at all: no pose above 0.2 m, and its grid has no height |
-| **thermal** | **no** | the scalar fields are ground-plane projections that ignore y (§11.28). A thermal reading carries no height information at all |
+| **thermal** | **no** | the scalar fields are ground-plane projections that ignore y (ï¿½11.28). A thermal reading carries no height information at all |
 
 So the raster is a *height-annotated* record of where the bot looked, and summariseRaster
-carries 	hermalLayerIsVolumetric: false as a typed literal — it cannot be flipped without
+carries 	hermalLayerIsVolumetric: false as a typed literal ï¿½ it cannot be flipped without
 a type error, and it reaches the report rather than living only in a docblock.
 
 #### The gate, and the calibration that makes it mean something
@@ -2664,7 +2699,7 @@ point: averaging would let three perfect cells out of 576 report 1.0.
 
 | raster | confidence | passes 0.6? |
 | --- | --- | --- |
-| empty | **0.000** | no — and 0, not a vacuous pass |
+| empty | **0.000** | no ï¿½ and 0, not a vacuous pass |
 | full, two consistent passes | 1.000 | yes |
 | **full, one pass only** | **0.578** | **no** |
 | 3 perfect cells of 576 | 0.002 | no |
@@ -2675,25 +2710,25 @@ The 0.578 is the calibration that matters: **one pass over a ceiling is a glimps
 not pass**, which is the same equiredObservation = 2 the 2-D coverage metric uses and the
 same reason the project previously had to reject "every wall at zero surface observations".
 
-Disagreement scoring 0 rather than averaging to the midpoint is §5.5's principle applied:
+Disagreement scoring 0 rather than averaging to the midpoint is ï¿½5.5's principle applied:
 disagreement is not averaged away, it is measured.
 
 #### The uncomfortable result: the gate passes with nothing found
 
 A perfectly rastered, perfectly consistent ceiling with **every deviation at 0.0 K** scores
-1.000 and passes the gate. That is not a bug — confidence here is about *survey coverage and
+1.000 and passes the gate. That is not a bug ï¿½ confidence here is about *survey coverage and
 agreement*, not about finding defects.
 
 So the stage F gate "ceiling rasters at =0.6 confidence" **cannot be read as "the hover bot
 finds things the ground bot misses"**. It is a statement about the bot having been there and
 measured consistently. Those are different claims, and only the second is the one the thesis
-needs — and §11.28 already measured that the volumetric manifold currently contributes
+needs ï¿½ and ï¿½11.28 already measured that the volumetric manifold currently contributes
 **no detection the ground manifold lacks**, because the one sensor-eligible volumetric defect
 leaks downward.
 
 The honest reading of the gate, once both halves are in: **it is met, and it is a weaker claim
-than it looks.** What would make it the claim the thesis needs is volumetric-only *content* —
-a defect visible from height and not from the floor — which §11.28 measured as absent, and
+than it looks.** What would make it the claim the thesis needs is volumetric-only *content* ï¿½
+a defect visible from height and not from the floor ï¿½ which ï¿½11.28 measured as absent, and
 whose absence is now the binding constraint on the whole thesis rather than a content gap.
 ---
 
@@ -2706,10 +2741,10 @@ stopped being closable.
 
 | gate clause | status |
 | --- | --- |
-| "ceiling rasters at =0.6 confidence" | **met as a model, not demonstrated in a run.** A full two-pass sweep scores 1.000; a single pass scores 0.578 and correctly fails. In a live run the raster reads **0.0008** — one cell of 1232 — because the bot has nowhere to fly |
-| "hover endurance respected by allocation" | **met**, by the capability filter rather than by the ranking (§11.30). ground.drive is absent, so the hover bot is never awarded ground work: measured **0 of 961** |
+| "ceiling rasters at =0.6 confidence" | **met as a model, not demonstrated in a run.** A full two-pass sweep scores 1.000; a single pass scores 0.578 and correctly fails. In a live run the raster reads **0.0008** ï¿½ one cell of 1232 ï¿½ because the bot has nowhere to fly |
+| "hover endurance respected by allocation" | **met**, by the capability filter rather than by the ranking (ï¿½11.30). ground.drive is absent, so the hover bot is never awarded ground work: measured **0 of 961** |
 
-So F is not complete. It is **blocked on volumetric job announcement** — there is no
+So F is not complete. It is **blocked on volumetric job announcement** ï¿½ there is no
 scan_ceiling job, so the hover bot holds station at its spawn for the whole mission,
 spends 10.19 Wh of its 22 Wh, and rasters one cell. That is the correct behaviour for an
 agent with no work, and it is not a demonstration of the gate.
@@ -2717,8 +2752,8 @@ agent with no work, and it is not a demonstration of the gate.
 #### What the wiring did produce: energy accounting that matches the model
 
 Over a 300 s mission the hover bot spends **10.186 Wh of 22 Wh (46.3%)**, finishing at 54%
-battery. The model predicts 120.6 W — 98 W x 1.23, the clearance multiplier at 1.2 m in a
-2.50 m room — giving 10.05 Wh. **Measured 10.186 against a predicted 10.05**, so the power
+battery. The model predicts 120.6 W ï¿½ 98 W x 1.23, the clearance multiplier at 1.2 m in a
+2.50 m room ï¿½ giving 10.05 Wh. **Measured 10.186 against a predicted 10.05**, so the power
 model in hover.ts and the power model in the run loop are the same model, not two that
 agree by accident.
 
@@ -2726,7 +2761,7 @@ agree by accident.
 
 **1. The sensing pass cast a Pose3 to Pose2.** if (isLumenPose(agent.pose)) continue
 skipped the crawler and nothing else. A hover bot fell through to gent.pose as Pose2, so
-p.theta was undefined. That does not throw — it produces NaN bearings, and the thermal
+p.theta was undefined. That does not throw ï¿½ it produces NaN bearings, and the thermal
 detector then emits a candidate per ray:
 
 | swarm | mission | jobs | candidates | wall clock |
@@ -2737,8 +2772,8 @@ detector then emits a candidate per ray:
 
 **2. The coverage announce picked a volumetric agent to anchor ground jobs.** The guard was
 .spec.cls !== 'inchworm', correct while every non-crawler was a ground bot. It selected the
-hover bot, read x and z off a Pose3 — which works *by accident*, because Pose3 has
-both fields — and anchored 480 ground frontier jobs per second of mission at a bot that can
+hover bot, read x and z off a Pose3 ï¿½ which works *by accident*, because Pose3 has
+both fields ï¿½ and anchored 480 ground frontier jobs per second of mission at a bot that can
 never service one.
 
 Both were correct code for the world as it stood, and both were **wrong the moment a third
@@ -2752,5 +2787,5 @@ agents, so a crawler-only swarm announces conduit work and nothing else, and a v
 swarm announces ceiling work and nothing else.
 
 Parity held at 8f9dfce8 through both, which is the check that the fix did not disturb the
-ground path — every ground bot is on the ground manifold, so the guard is a no-op there.
+ground path ï¿½ every ground bot is on the ground manifold, so the guard is a no-op there.
 425 tests green.

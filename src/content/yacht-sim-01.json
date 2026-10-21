@@ -6,7 +6,8 @@
 
   "_manifoldMapping": "The sim has one ground plane, one set of conduits, and one volume above the ground plane. On a midships section those become: GROUND = the engine room sole. CONSTRAINED = the engine room's pipe runs. VOLUMETRIC = the space above the engine room sole, which holds the deckhead void over the engine, the cockpit airspace, and the forward stringer void.",
 
-  "_whyTheStringerVoidIsSpecial": "It is the largest volume on the boat and it is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. So the volume is unreachable, and the fault in it is the most severe one on the vessel. That is not authored — it is what the geometry does.",
+  "_whyTheStringerVoidIsSpecial": "It is the largest volume on the boat and it is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot is 240 mm across and needs a metre of ceiling to hold station, and the inchworm is confined to conduits, of which the void has none. So the volume is unreachable, and the fault in it is the most severe one on the vessel. That is not authored — it is what the geometry does.",
+  "_whatA200MmHatchMeans": "A 200 mm clear opening is a hand-hole, not a man-way. A person cannot get their body through one. What a person CAN do is kneel on the deck, put an arm and a torch through it, and see and reach the space inside - which is exactly what a surveyor does, and exactly what no robot in this swarm can do. The comparison is not 'a person gets in and the robot does not'. It is 'a person's arm reaches the fault and the robot cannot get its sensor within 340 mm of the hole'. The first version of this file said a person can get through a 200 mm hatch, which is false, and the picture it produced - a person standing inside the void - was false with it.",
 
   "profiles": {
     "_note": "11 samples at u = 0.0 (transom) to 1.0 (stem). Linear interpolation between samples. keelLift is the fraction of the draft by which the keel is lifted above its lowest point: 0 at the deepest station, 1 at the ends. ASSUMED - replace with the yard's lines plan.",
@@ -156,7 +157,7 @@
 
   "_assumptions": [
     "Principal characteristics are Sunseeker's published figures for the Predator 55. Every profile, bulkhead, deck height, hatch size and pipe route is ASSUMED.",
-    "The two deck hatches are 200 mm clear. That single number decides whether the stringer void is reachable, and it is question A2 for the marine engineer.",
+    "The two deck hatches are 200 mm clear. That single number decides whether the stringer void is reachable, and it is question A2 for the marine engineer. 200 mm is a hand-hole: an arm and a torch go through it, a body does not. The deck is sealed elsewhere, so the void is entered from nowhere else.",
     "The engine bay access hatch is 400 mm clear, which the hover bot can pass and the ground bot cannot.",
     "The stringer void is 700 mm wide between the stringers, which is wider than the 500 mm the inchworm can crawl in a conduit. It is a space, not a pipe, and the model has no way to say so — which is itself the finding."
   ]

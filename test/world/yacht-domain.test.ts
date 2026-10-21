@@ -39,11 +39,13 @@ import {
   buildHullForm,
   cutPlaneLeavesHullAt,
   hullBottomY,
+  hullBottomYSim,
   hullHalfBreadthAt,
   stationAt,
 } from '../../src/sim/world/yacht-form.ts'
 
 const TOTAL_TICKS = 3000
+const CUT_Z = 0.65
 
 function runTheSwarm(): ReturnType<typeof createRun> {
   const run = createRun(
@@ -209,6 +211,76 @@ describe('the swarm on the boat', () => {
       }
     }
     expect(NEAR_CANDIDATE_M).toBeGreaterThan(0)
+  })
+})
+
+describe('the space the product is about', () => {
+  it('holds the fault the whole product exists for', () => {
+    // This is the test the renderer's coordinate bug should have failed.
+    //
+    // The viewer was drawing the hull in the boat's own coordinates and the
+    // rooms and the robots in the simulation's, and the two are 1.75 m apart.
+    // The void's floor — which is the hull's own inner surface — came out above
+    // its own ceiling, the void collapsed to a ribbon, and the fault was drawn
+    // underneath it, in the sea. Nothing about the simulation changed. The
+    // picture was simply wrong, and wrong in the direction that flattered it.
+    const fault = yachtTruth.anomalies.find((a) => a.id === 'yc-04')!
+    const voidDef = yachtHouse.voids.find((v) => v.id === 'stringer-fwd')!
+    const u = (fault.position[0] + yachtPrincipal.loa / 2) / yachtPrincipal.loa
+    const floor = hullBottomYSim(yachtForm, u, CUT_Z)
+
+    expect(fault.position[0]).toBeGreaterThan(voidDef.aabb.minX)
+    expect(fault.position[0]).toBeLessThan(voidDef.aabb.maxX)
+    expect(fault.position[1], 'the fault must sit above the floor the renderer draws').toBeGreaterThan(
+      floor,
+    )
+    expect(fault.position[1], 'and below the deck').toBeLessThan(voidDef.aabb.maxY)
+  })
+
+  it('is within an arm\'s reach of the hole in the deck', () => {
+    // The claim is that a person can put a hand and a torch into this space and
+    // that no robot in the swarm can. It only holds if the fault is close enough
+    // under the hole for an arm to reach, and if the hole is the only way in.
+    const fault = yachtTruth.anomalies.find((a) => a.id === 'yc-04')!
+    const voidDef = yachtHouse.voids.find((v) => v.id === 'stringer-fwd')!
+    const hatch = yachtHouse.ports.find((p) => p.id === 'hatch-deck-1')!
+
+    // Within an arm's length below the deck, and under the forward hatch.
+    expect(voidDef.aabb.maxY - fault.position[1]).toBeLessThan(1.0)
+    expect(Math.abs(fault.position[0] - hatch.position[0])).toBeLessThan(0.2)
+
+    // The hatch is the way in, and it is a deck hatch rather than a conduit
+    // entry — which is what keeps the inchworm out of the argument.
+    expect(hatch.kind).toBe('hatch')
+    expect(hatch.a).toBe('volumetric')
+    expect(hatch.b).toBe('volumetric')
+  })
+})
+
+describe('the aperture arithmetic', () => {
+  it('holds, read from the content and the agents rather than asserted', () => {
+    const hatch = yachtHouse.ports.find((p) => p.id === 'hatch-deck-1')!
+    const clearMm = hatch.radius * 2000
+
+    // The ground bot is wider than the hole.
+    expect(GROUND_BOT.radius * 2000).toBeGreaterThan(clearMm)
+    // The hover bot is wider than the hole.
+    expect(HOVER.radius * 2000).toBeGreaterThan(clearMm)
+    // The inchworm is narrower than the hole — and cannot use it anyway,
+    // because it lives in conduits and this is a hole in a deck.
+    expect(INCHWORM.radius * 2000).toBeLessThan(clearMm)
+    expect(INCHWORM.manifold).toBe('constrained')
+  })
+
+  it('and the hole is a hand-hole, not a man-way', () => {
+    // A 200 mm clear opening admits an arm and a torch. It does not admit a
+    // body, and the product's claim is the first and not the second. The first
+    // version of this domain claimed a person could get through, and the
+    // picture it produced — a person standing inside the void — was impossible.
+    const hatch = yachtHouse.ports.find((p) => p.id === 'hatch-deck-1')!
+    const clearMm = hatch.radius * 2000
+    expect(clearMm).toBeGreaterThan(80) // an arm and a torch
+    expect(clearMm).toBeLessThan(300) // not a body
   })
 })
 

@@ -7,8 +7,9 @@
  * A free orbit shows you the boat. The scripted sequence shows you the *problem*:
  * it starts outside in the dark, goes in to the engine room where the swarm is
  * working and the light is building, pulls forward along the hull to the stringer
- * void — which stays black the whole way — puts a person in it, and then pulls back
- * to the hero frame with the lit engine room behind the dark void.
+ * void — which stays black the whole way — comes up onto the deck and looks down
+ * through a 200 mm hole at a person kneeling there with an arm in it, and then
+ * pulls back to the hero frame with the lit engine room behind the dark void.
  *
  * Any drag hands control back to the user; the button puts the camera back on rails.
  */
@@ -24,7 +25,7 @@ import { buildReport } from '../sim/report/report.ts'
 import { TakeRecorder, frameFromTake, observedFraction, regionCoverage } from '../sim/report/take.ts'
 import { buildVerdict } from '../sim/report/verdict.ts'
 import { GROUND_BOT } from '../sim/sim/agents.ts'
-import { HOVER, INCHWORM } from '../sim/types.ts'
+import { HOVER, HOVER_CLEARANCE_M, INCHWORM } from '../sim/types.ts'
 import {
   yachtHouse,
   yachtTruth,
@@ -171,18 +172,19 @@ type Beat = {
 
 const CUT: readonly Beat[] = [
   // 0. Outside, high, the whole boat in the dark.
-  { t: 0.0, target: [0, 1.6, 0], yaw: 1.25, pitch: 0.3, distance: 27 },
+  { t: 0.0, target: [0, 0.9, 0], yaw: 1.25, pitch: 0.34, distance: 21 },
   // 1. Down and inboard, towards the engine room.
-  { t: 0.16, target: [-4.2, 0.7, 0], yaw: 1.05, pitch: 0.18, distance: 15 },
+  { t: 0.16, target: [-4.2, 0.3, 0], yaw: 1.05, pitch: 0.2, distance: 14 },
   // 2. Inside the engine room, low, the light building.
-  { t: 0.34, target: [-6.0, 0.5, 0], yaw: 1.5, pitch: 0.13, distance: 9.5 },
+  { t: 0.34, target: [-6.0, 0.2, 0], yaw: 1.5, pitch: 0.14, distance: 9 },
   // 3. Pull forward along the hull. The void does not light up.
-  { t: 0.54, target: [0.5, 0.7, 0], yaw: 1.35, pitch: 0.2, distance: 15 },
-  // 4. In on the void, where the person is.
-  { t: 0.72, target: [3.6, 0.7, CUT_Z], yaw: 1.7, pitch: 0.14, distance: 9 },
+  { t: 0.54, target: [0.5, 0.4, 0], yaw: 1.35, pitch: 0.26, distance: 14 },
+  // 4. Up onto the deck, looking down through the 200 mm hole. The person is
+  //    kneeling there with an arm in it, and the fault is 760 mm below.
+  { t: 0.72, target: [2.7, 0.95, CUT_Z], yaw: 1.45, pitch: 0.58, distance: 8.5 },
   // 5. The hero frame: lit engine room behind the dark void.
-  { t: 0.9, target: [-1.0, 1.1, 0], yaw: 1.0, pitch: 0.24, distance: 22 },
-  { t: 1.0, target: [0, 1.6, 0], yaw: 1.25, pitch: 0.3, distance: 27 },
+  { t: 0.9, target: [0.4, 0.55, 0], yaw: 1.05, pitch: 0.34, distance: 16.5 },
+  { t: 1.0, target: [0, 0.9, 0], yaw: 1.25, pitch: 0.34, distance: 21 },
 ]
 
 function cameraAt(t: number): void {
@@ -359,9 +361,9 @@ side.innerHTML = `
   <table>
     ${row('Deck hatch clear width', '200 mm')}
     ${row('Ground bot', `340 mm across (r = ${GROUND_BOT.radius} m)`)}
-    ${row('Hover bot', `240 mm span, needs 400 mm of clearance (r = ${HOVER.radius} m)`)}
+    ${row('Hover bot', `240 mm across (r = ${HOVER.radius} m), and needs ${HOVER_CLEARANCE_M} m of ceiling`)}
     ${row('Inchworm', `80 mm, but confined to conduits`)}
-    ${row('A person', '1.8 m, and can get through a 200 mm hatch')}
+    ${row('A person', '1.8 m. An arm and a torch go through 200 mm; a body does not.')}
   </table>
 
   <h3>Assumptions</h3>

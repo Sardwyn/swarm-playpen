@@ -201,29 +201,71 @@ mean the void thesis is dead for this class.
 The core IP. One row per fault class. The right-hand columns are what makes it
 worth more than the boat.
 
-| # | Fault | Spaces | Observable? | Second observable? | Corroborable? |
-|---|---|---|---|---|---|
-| **F1** | **Condensation in a void** | all voids | **Yes** — RH + temperature | Temperature gradient, diurnal cycle | **Yes** — RH correlates with skin temp |
-| **F2** | **Active water ingress / leak** | voids, deck, hull | Yes — RH rise | Response to a wash cycle; point source | **Yes** — wash-cycle response is near-decisive |
-| **F3** | **Core saturation (balsa topside)** | topsides, deck | Partly — capacitance, dual-depth | Hammer percussion (dull/hollow), UT | Yes, with percussion |
-| **F4** | **Delamination / void in laminate** | deck, topsides | Partly | Thermography, UT, percussion | Yes, with two of three |
-| **F5** | **Osmosis blistering** | below-waterline | Yes — blister count/size/pattern, fluid pH | Resistance/conductivity of fluid | Yes |
-| **F6** | **Historic salt in core (osmosis precursor)** | voids | **Indirect** — equilibrium RH with ambient | Chloride on sampling | Only with sampling |
-| **F7** | **Fuel vapour in engine space** | engine bay, void | Yes — gas at the access point | Sensor + corroborating gas | **Yes** — and *nobody can go in* |
-| **F8** | **Corrosion at dissimilar metals / fittings** | voids, engine bay | Partly — visual only | — | **No** — needs eyes |
-| **F9** | **Blocked ventilation / drainage / bilge pump** | engine bay, voids | Partly — airflow, standing water | Standing water persists with pumps running | Yes |
-| **F10** | **Deck penetration leak (cleat, stanchion, winch, mast step)** | deck | Yes — local RH at fixing, visual | Borescope | Yes |
-| **F11** | **Unrecorded modification / penetration** | all | **Yes** — config vs. documentation | Surveyor record | **Yes** — this is Pan's problem exactly |
-| **F12** | **Exhaust leak / water ingress to engine** | engine bay | Yes — thermal, sound | — | Partly |
-| **F13** | **Bilge high / pump fault** | bilge | Yes — depth | Standing water + pump state | Yes |
-| **F14** | **Seacock / through-hull valve weeping** | hull, garboard | Yes — visual, thermal | — | Partly |
-| **F15** | **Machinery vibration / misalignment** | engine room | Yes — IMU | Load correlation | Yes |
+**This is now authored, not described.** The taxonomy lives in
+`src/content/marine-taxonomy-01.json`, is loaded by
+`src/sim/world/marine-taxonomy.ts`, and the twin's oracle references it. A table
+in a document is a claim; a table in a content file that the code validates is a
+constraint.
+
+### 5.0 The distinction the whole thing turns on
+
+A **signature** is a physical reading an instrument can produce. A **class** is a
+cause — what a surveyor would write on the report.
+
+| | |
+|---|---|
+| signature | `moisture_leak`, `thermal_anomaly`, `blocked_vent`, `clutter_hazard`, `structural_crack` |
+| class | `active_water_ingress`, `condensation_in_void`, `exhaust_leak`, `blocked_drainage` |
+
+The instrument produces signatures. A person produces causes. Five marine causes
+share the `moisture_leak` reading and **no single measurement separates them**,
+so the oracle names the cause *and* declares the reading, the engine matches on
+the reading, and the report prints the cause with the reading beside it and
+never claims to know which one it was.
+
+This is not a hedge. It is the commercial argument. The product is a deployment
+with a time series, not a handheld reading; the owner's next move after "a
+moisture anomaly of undetermined cause" is to leave the logger there and wash
+the deck. An instrument that names the cause from one reading is caught out by
+the first marine engineer who looks at it.
+
+| # | Fault — the cause | Reading — the signature | Spaces | Observable? | Second observable? | Corroborable? |
+|---|---|---|---|---|---|---|
+| **F1** | **Condensation in a void** | `moisture_leak` | all voids | **Yes** — RH + temperature | Temperature gradient, diurnal cycle | **Yes** — RH correlates with skin temp |
+| **F2** | **Active water ingress / leak** | `moisture_leak` | voids, deck, hull | Yes — RH rise | Response to a wash cycle; point source | **Yes** — wash-cycle response is near-decisive |
+| **F3** | **Core saturation (balsa topside)** | — | topsides, deck | Partly — capacitance, dual-depth | Hammer percussion (dull/hollow), UT | Yes, with percussion |
+| **F4** | **Delamination / void in laminate** | — | deck, topsides | Partly | Thermography, UT, percussion | Yes, with two of three |
+| **F5** | **Osmosis blistering** | — | below-waterline | Yes — blister count/size/pattern, fluid pH | Resistance/conductivity of fluid | Yes |
+| **F6** | **Historic salt in core (osmosis precursor)** | `moisture_leak` | voids | **Indirect** — equilibrium RH with ambient | Chloride on sampling | Only with sampling |
+| **F7** | **Fuel vapour in engine space** | — | engine bay, void | Yes — gas at the access point | Sensor + corroborating gas | **Yes** — and *nobody can go in* |
+| **F8** | **Corrosion at dissimilar metals / fittings** | — | voids, engine bay | **No** — visual only | — | **No** — needs eyes |
+| **F9a** | **Blocked ventilation / extraction** | `blocked_vent` | engine bay, voids | Partly — airflow, standing water | Standing water persists with pumps running | Yes |
+| **F9b** | **Blocked drainage** | `blocked_vent`, `clutter_hazard` | deck, engine bay | Indirect | Standing water persists | Yes |
+| **F10** | **Deck penetration leak (cleat, stanchion, winch, mast step)** | `moisture_leak` | deck | Yes — local RH at fixing, visual | Borescope | Yes |
+| **F11** | **Unrecorded modification / penetration** | — | all | **No** — documentation | Surveyor record | **Yes** — this is Pan's problem exactly |
+| **F12** | **Exhaust leak / water ingress to engine** | `thermal_anomaly` | engine bay | Yes — thermal, sound | — | Partly |
+| **F13** | **Bilge high / pump fault** | `moisture_leak` | bilge | Indirect — depth | Standing water + pump state | Yes |
+| **F14** | **Seacock / through-hull valve weeping** | `moisture_leak` | hull, garboard | Yes — visual, thermal | — | Partly |
+| **F15** | **Machinery vibration / misalignment** | — | engine room | **No** — no detector for it yet | IMU + load correlation | Yes |
+| **F16** | **Obstruction in a fuel line** | `blocked_vent` | engine bay, tank bay | Yes — the crawler's bore range finder | — | Partly |
+| **F17** | **Weld defect or porosity** | `structural_crack` | hull, structure | Indirect — geometric proxy | UT, dye penetrant | Yes |
+| **F18** | **Hull stress crack** | `structural_crack` | hull, structure | Indirect | UT mapping | Yes |
+| **F19** | **Debris in the bilge** | `clutter_hazard` | bilge | Indirect | Depth + what is floating | Yes |
+
+**A class with no reading is not a defect in the taxonomy.** F8, F11 and F15 are
+in it with no signature attached, and the loader *refuses* to let a class marked
+`not_observable` claim one. That is the point: corrosion at dissimilar metals
+needs eyes and always will, an unrecorded penetration is a records problem, and
+machinery vibration is a detector gap rather than a sensor gap — the crawler
+already carries an accelerometer for its own state and nothing interprets it
+yet. A product that writes its boundary down is a product that cannot be
+surprised.
 
 ### 5.1 What the table says
 
-- **F1, F2, F7, F13 are the void-accessible wins.** They are measurable in the
-  spaces we can reach, they are measurable with cheap instruments, and they are the
-  ones the industry cannot currently see.
+- **F1, F2, F6, F13 are the void-accessible wins.** They are measurable in the
+  spaces we can reach, they are measurable with cheap instruments, and they are
+  the ones the industry cannot currently see.
 - **F8 is the one nobody can do.** Corrosion needs eyes. That is a permanent limit of
   any instrument, and saying so is more valuable than a number that pretends
   otherwise.
@@ -231,6 +273,8 @@ worth more than the boat.
   equilibrium with the atmosphere, which is consistent with hygroscopic salt rather
   than an active leak." We cannot say more without taking a sample.
 - **F11 is a documentation check, not a measurement.** And it is worth real money.
+- **F16 is the clearest case for the swarm earning its keep.** A 60 mm fuel line is
+  a good place to put a robot and a bad place to put a person.
 
 ### 5.2 The corroboration problem, stated precisely
 
@@ -246,8 +290,6 @@ responses:
 
 **No single instrument separates these. A time series does.** This is why the
 instrument needs to *stay* — it is not a handheld reading, it is a deployment.
-
----
 
 ## 6. Sensor → instrument mapping
 
@@ -454,6 +496,12 @@ competitor, our channel, and our first design partner.*
 | `scripts/diag-yacht-form.ts` | The inboard profile and the access arithmetic. `npm run diag:yacht`. |
 | `scripts/diag-yacht-sim.ts` | The run, the findings, and the verdict. `npm run diag:yacht-sim`. |
 | `test/world/yacht-domain.test.ts` | The claim, asserted. |
+| `src/content/marine-taxonomy-01.json` | The marine fault taxonomy: the causes, the readings that stand behind them, what corroborates each, what it costs to fix, and what no instrument will ever see. |
+| `src/sim/world/marine-taxonomy.ts` | The loader, and the validation that makes the taxonomy impossible to contradict itself. |
+| `test/world/marine-taxonomy.test.ts` | The taxonomy's claims, asserted: 17 tests. |
+| `test/world/domain-genericity.test.ts` | Renaming every fault changes nothing; a reading is only credited on its own manifold. |
+| `scripts/diag-match.ts` | Why a finding matched the fault it matched: distance, extent overlap, manifold. |
+| `scripts/diag-air.ts` | The air proxy at the engine bay vent, measured against the detector's gate. |
 
 **One content file.** The parallel regions model is gone. The vessel is a content
 file in the house's own schema, the oracle is a separate file as it is for the house,
@@ -466,21 +514,69 @@ the terminal are the same boat.
 ## 14. The result
 
 ```
-engine room coverage 98.9%    4 found, 3 missed
+engine room coverage 100.0%   4 found, 3 missed
 
-  yc-01  sev 0.60  FOUND
-  yc-02  sev 0.50  DETECTION     nearest candidate 0.63 m
-  yc-03  sev 0.75  FOUND
-  yc-04  sev 0.85  ARCHITECTURE  nearest candidate 7.61 m
-  yc-05  sev 0.40  DETECTION     nearest candidate 0.01 m
-  yc-06  sev 0.50  FOUND
-  yc-07  sev 0.70  FOUND
+  yc-01  exhaust_leak              sev 0.60  FOUND
+  yc-02  blocked_ventilation       sev 0.50  DETECTION     nearest candidate 0.63 m
+  yc-03  active_water_ingress      sev 0.75  FOUND
+  yc-04  condensation_in_void      sev 0.85  ARCHITECTURE  nearest candidate 6.41 m
+  yc-05  blocked_drainage          sev 0.40  FOUND
+  yc-06  fuel_line_debris          sev 0.50  FOUND
+  yc-07  salt_hygroscopic_equilibrium sev 0.70  DETECTION  nearest candidate 0.73 m
 ```
 
 **The most severe fault on the vessel is in the forward stringer void, and the swarm
 never gets near it.** The void is entered only through two 200 mm deck hatches; the
-ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the
-inchworm is confined to conduits. A person can get through a 200 mm hatch.
+ground bot is 340 mm across, the hover bot is 240 mm across and needs a metre of
+ceiling to hold station, and the inchworm is confined to conduits, of which the
+void has none.
+
+**And note what a person can do about it.** A 200 mm clear opening is a
+*hand-hole*, not a man-way: nobody gets their body through one. What a person can
+do is kneel on the deck, put an arm and a torch through it, and see and reach the
+space inside — which is exactly what a surveyor does, and exactly what nothing in
+this swarm can do. The ground bot is 340 mm across and cannot get its sensor
+within 340 mm of a 200 mm hole.
+
+The first version of this document said a person can get through a 200 mm hatch,
+and the picture it produced put a person standing inside the void. Both were
+false, and they were false in the same direction: the claim was inflated until
+the picture could be drawn, and the picture then propped up the claim. The
+correct claim is smaller and sharper, and it is the one the surveyor's own
+practice is already built on.
+
+**And the other two misses are not dressed up as coverage failures — and they are not
+the same failure either.** The swarm was 0.63 m from the blocked vent and the
+blocked-vent detector did not fire, because the air proxy at the port rises 118%
+over the field's ambient and the detector's gate is a 150% rise. That is a
+*calibration* finding: the entire field peaks below the threshold, so no position in
+the engine bay would have triggered it. The third miss is the deckhead void over the
+engine, which is 410 mm tall while the hover bot needs 1.0 m; it went in, spent its
+whole 12 Wh pack holding station against the ceiling, and faulted on empty.
+
+The distinction is the report. *The boat's architecture stopped the swarm* versus
+*our detector is mis-calibrated* versus *our battery ran out*. One is the product;
+the other two are bugs — and bugs we can fix, and now know where they are.
+
+**The most severe fault on the vessel is in the forward stringer void, and the swarm
+never gets near it.** The void is entered only through two 200 mm deck hatches; the
+ground bot is 340 mm across, the hover bot is 240 mm across and needs a metre of
+ceiling to hold station, and the inchworm is confined to conduits, of which the
+void has none.
+
+**And note what a person can do about it.** A 200 mm clear opening is a
+*hand-hole*, not a man-way: nobody gets their body through one. What a person can
+do is kneel on the deck, put an arm and a torch through it, and see and reach the
+space inside — which is exactly what a surveyor does, and exactly what nothing in
+this swarm can do. The ground bot is 340 mm across and cannot get its sensor
+within 340 mm of a 200 mm hole.
+
+The first version of this document said a person can get through a 200 mm hatch,
+and the picture it produced put a person standing inside the void. Both were
+false, and they were false in the same direction: the claim was inflated until
+the picture could be drawn, and the picture then propped up the claim. The
+correct claim is smaller and sharper, and it is the one the surveyor's own
+practice is already built on.
 
 **And the other two misses are not dressed up as coverage failures.** The swarm was
 0.63 m and 0.01 m away from those faults and the detectors did not match them.
@@ -492,11 +588,18 @@ detector is imprecise.* One is the product; the other is a bug.
 ### What is authored and what falls out
 
 Authored: the published principal characteristics, the profiles, the bulkheads, the
-deck heights, the pipe routes, the hatch clear widths, the fault taxonomy.
+deck heights, the pipe routes, the hatch clear widths, the fault taxonomy, and the
+magnitude of each fault.
 
 Fell out of the geometry: the engine room's coverage, the four findings, the two
 detection misses, the architectural miss, the distance from the swarm to the fault it
-never found, and the fact that a person can reach the space a robot cannot.
+never found, and the fact that a person can put a hand into the space a robot
+cannot reach at all.
+
+Fell out of the taxonomy meeting the engine: the fact that the blocked-vent gate sits
+above the whole range of the air field, and the fact that a humidity reading taken on
+the sole is not evidence about the deckhead void above it. Neither was asked for.
+Both are the reason to build the twin.
 
 ---
 
@@ -508,11 +611,37 @@ never found, and the fact that a person can reach the space a robot cannot.
 | The plating filled down to the baseline | On a deep-V hull that is most of the frame. The space under the hull is sea, not plating. |
 | The diagnostic restricted the match to the ground manifold | That removed the volumetric faults from the pool, so the deckhead fault looked missed for a reason that was an artefact of the diagnostic. |
 | An array literal whose arrow functions referenced the binding they were being destructured from | A temporal dead zone waiting to happen. |
+| The report credited a finding to a fault on a **different manifold** | A humidity reading taken on the engine room sole was credited to a condensation in the deckhead void, 850 mm above it and two metres away, with no extent overlap at all. The report claimed a clearance it had not earned. |
+| `IOU_MATCH` was declared in the spec and read by **nothing** | It was 0.3, and reading it would have rejected every detection in the run — including a crawler sitting 0.00 m from a fuel-line obstruction, whose extent overlap was 0.025. IoU measures delineation, not detection. |
+| The physics was keyed on the fault's **name** | The field builder switched on `a.class === 'moisture_leak'`. Renaming that class to `active_water_ingress` stopped the humidity field being built at all, and recall fell by a third with nothing anywhere saying why. |
+| The yacht's only clutter object was **inside the coolant tank** | So the clutter detector was silent, and the fault it was supposed to find had no physical object at all. A content file that misdescribes the world makes the report misdescribe it. |
+| The viewer drew the hull in **boat coordinates** and the rooms in **simulation coordinates** | They are 1.75 m apart. The void's floor — which *is* the hull's inner surface — came out above its own ceiling, the void collapsed to a ribbon, and the fault the product is about was drawn underneath it, in the sea. The simulation was right; the picture was wrong, and wrong in the direction that flatters it. |
+| The central claim was **false**, and the picture had been drawn to suit it | "A person can get through a 200 mm hatch" cannot be true — 200 mm is a hand-hole, an arm and a torch, not a body. And the scene had a person *standing inside* the void, which the geometry forbids. The claim had been inflated until the picture could be drawn, and the picture then propped up the claim. The corrected claim is smaller and sharper: a person's arm reaches the fault, and no robot can get its sensor within 340 mm of the hole. |
 
 **The third one is the one worth remembering.** The diagnostic was not lying — it was
 *answering a narrower question than it appeared to*, and the answer it produced was
 indistinguishable from a real finding. A diagnostic that restricts the search space
 produces false negatives that look exactly like results.
+
+**But the last six are a different and worse shape.** They are all the same defect:
+**something that looks like a measurement and is not one.** A declared threshold that
+no code reads. A field that keys on a label rather than on physics. A content file
+whose object is buried inside another object. A match gate that ignores which space
+the sensor was in. A picture drawn in the wrong coordinate system. A claim that was
+inflated until a picture could be drawn for it. Each of them produced a number — a
+recall, a coverage, a clearance — and each of the numbers was wrong in a way that
+pointed the wrong way.
+
+The generalisation worth keeping: **a name that can move a number is doing physics,
+a parameter that no code reads is not a parameter, and a picture that is drawn to
+support a claim is not evidence for it.** The test that catches the first is
+`test/world/domain-genericity.test.ts`: rename every fault in the domain to a
+nonsense string, keep the reading, and assert the run is byte-identical. The test
+that catches the third is in `test/world/yacht-domain.test.ts`: assert the fault is
+above the floor the renderer draws and below the deck, and that it is within an
+arm's reach of the hole. If a name can move a number, or the picture can drift away
+from the space, those tests fail — and neither needs anyone to remember to look at
+the recall.
 
 ---
 

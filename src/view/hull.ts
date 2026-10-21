@@ -26,7 +26,12 @@
 
 import * as THREE from 'three'
 import type { HullForm } from '../sim/world/yacht-form.ts'
-import { cutPlaneLeavesHullAt, hullBottomY, stationAt, uFromX } from '../sim/world/yacht-form.ts'
+import {
+  cutPlaneLeavesHullAt,
+  hullBottomYSim,
+  stationAt,
+  uFromX,
+} from '../sim/world/yacht-form.ts'
 
 export type HullGeometry = {
   /** The outer shell of the hull, both sides. */
@@ -55,7 +60,7 @@ function sectionPoints(form: HullForm, u: number, out: THREE.Vector3[], sign: nu
   const DEADRISE_STEPS = 3
   for (let i = 0; i <= DEADRISE_STEPS; i++) {
     const z = (s.chineZ * i) / DEADRISE_STEPS
-    out.push(new THREE.Vector3(s.x, s.keelY + z * tan, sign * z))
+    out.push(new THREE.Vector3(s.x, s.keelY + z * tan - form.baselineOffsetM, sign * z))
   }
   // Chine to sheer. The topside flares outboard, so the inner surface at a given
   // height is narrower than the sheer, and a straight run is the honest shape for
@@ -64,7 +69,9 @@ function sectionPoints(form: HullForm, u: number, out: THREE.Vector3[], sign: nu
   for (let i = 1; i <= TOPSIDE_STEPS; i++) {
     const t = i / TOPSIDE_STEPS
     const z = s.chineZ + t * (s.sheerZ - s.chineZ)
-    out.push(new THREE.Vector3(s.x, s.chineY + t * (s.sheerY - s.chineY), sign * z))
+    out.push(
+      new THREE.Vector3(s.x, s.chineY + t * (s.sheerY - s.chineY) - form.baselineOffsetM, sign * z),
+    )
   }
 }
 
@@ -146,7 +153,7 @@ export function buildProfileRibbon(
     const u = i / (stationCount - 1)
     const s = stationAt(form, u)
     if (s.x > limit) break
-    const bottom = hullBottomY(form, u, cutZ)
+    const bottom = hullBottomYSim(form, u, cutZ)
     positions.push(s.x, bottom - plating, cutZ)
     positions.push(s.x, bottom, cutZ)
   }
@@ -170,7 +177,7 @@ export function buildProfileCurve(form: HullForm, cutZ: number, stationCount = 5
     const u = i / (stationCount - 1)
     const s = stationAt(form, u)
     if (s.x > limit) break
-    positions.push(s.x, hullBottomY(form, u, cutZ), cutZ)
+    positions.push(s.x, hullBottomYSim(form, u, cutZ), cutZ)
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -183,12 +190,12 @@ export function buildSheerLine(form: HullForm, stationCount = 56): THREE.BufferG
   for (let i = 0; i < stationCount; i++) {
     const u = i / (stationCount - 1)
     const s = stationAt(form, u)
-    positions.push(s.x, s.sheerY, s.sheerZ)
+    positions.push(s.x, s.sheerY - form.baselineOffsetM, s.sheerZ)
   }
   for (let i = stationCount - 1; i >= 0; i--) {
     const u = i / (stationCount - 1)
     const s = stationAt(form, u)
-    positions.push(s.x, s.sheerY, -s.sheerZ)
+    positions.push(s.x, s.sheerY - form.baselineOffsetM, -s.sheerZ)
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -213,5 +220,5 @@ export function buildHullGeometry(form: HullForm, cutZ: number): HullGeometry {
  */
 export function hullSurfaceBelow(form: HullForm, x: number, cutZ: number): THREE.Vector3 {
   const u = uFromX(form, x)
-  return new THREE.Vector3(x, hullBottomY(form, u, cutZ), cutZ)
+  return new THREE.Vector3(x, hullBottomYSim(form, u, cutZ), cutZ)
 }

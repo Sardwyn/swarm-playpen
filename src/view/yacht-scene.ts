@@ -34,7 +34,7 @@
 import * as THREE from 'three'
 import type { SimFrame } from '../sim/report/frame.ts'
 import { buildHullGeometry } from './hull.ts'
-import { hullBottomY } from '../sim/world/yacht-form.ts'
+import { hullBottomYSim } from '../sim/world/yacht-form.ts'
 import type { HullForm } from '../sim/world/yacht-form.ts'
 
 const COLOURS = {
@@ -174,15 +174,15 @@ function makeGlow(colour: number, size: number): THREE.Sprite {
  * A human figure, for scale.
  *
  * Built from capsules, and deliberately not a character: it is a ruler. Its whole
- * job is to make the aperture arithmetic visible — a person is 1.8 m and fits
- * through 200 mm; the ground bot is 340 mm across and does not.
+ * job is to make the aperture arithmetic visible — a person is 1.8 m tall and the
+ * ground bot is 340 mm across.
  */
 function makeHuman(heightM: number, colour: number): THREE.Group {
   const g = new THREE.Group()
   const material = new THREE.MeshBasicMaterial({
     color: colour,
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.26,
     depthWrite: false,
   })
   const s = heightM / 1.8
@@ -203,6 +203,66 @@ function makeHuman(heightM: number, colour: number): THREE.Group {
     arm.position.set(side * 0.24 * s, 1.2 * s, 0)
     g.add(arm)
   }
+  return g
+}
+
+/**
+ * A person kneeling on the deck, reaching down through a 200 mm hatch.
+ *
+ * This is the picture the whole project is for, and it is a picture of a
+ * *reach*, not of an entry. A 200 mm clear opening is a hand-hole: an arm and a
+ * torch go through it, a body does not. The earlier version of this scene put a
+ * person standing inside the void, which was impossible and was the visual
+ * statement of a claim that was also impossible.
+ *
+ * So the figure kneels on the deck with one arm through the hole, and what it
+ * says is: this is what a surveyor does, and no robot in the swarm can put its
+ * sensor within 340 mm of doing it.
+ */
+function makeReachingPerson(colour: number): THREE.Group {
+  const g = new THREE.Group()
+  const material = new THREE.MeshBasicMaterial({
+    color: colour,
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false,
+  })
+
+  /** A capsule laid between two points, which is how a limb is described. */
+  const limb = (
+    a: readonly [number, number, number],
+    b: readonly [number, number, number],
+    radius: number,
+  ): THREE.Mesh => {
+    const from = new THREE.Vector3(...a)
+    const to = new THREE.Vector3(...b)
+    const mid = from.clone().add(to).multiplyScalar(0.5)
+    const mesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius, from.distanceTo(to), 3, 8),
+      material,
+    )
+    mesh.position.copy(mid)
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      to.clone().sub(from).normalize(),
+    )
+    return mesh
+  }
+
+  // Kneeling: shins along the deck, thighs upright, torso leaning forward over
+  // the hole, one arm down through it. The other arm braces on the deck.
+  g.add(limb([0.62, 0.06, 0.1], [0.22, 0.06, 0.1], 0.075)) // shin
+  g.add(limb([0.62, 0.06, -0.1], [0.22, 0.06, -0.1], 0.075)) // shin
+  g.add(limb([0.62, 0.06, 0.1], [0.6, 0.46, 0.1], 0.08)) // thigh
+  g.add(limb([0.62, 0.06, -0.1], [0.6, 0.46, -0.1], 0.08)) // thigh
+  g.add(limb([0.6, 0.46, 0], [0.2, 0.62, 0], 0.15)) // torso, leaning forward
+  g.add(limb([0.22, 0.62, 0.11], [0.14, 0.2, 0.08], 0.06)) // arm, bracing
+  g.add(limb([0.22, 0.62, -0.11], [0.0, 0.04, -0.03], 0.06)) // arm, through the hole
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), material)
+  head.position.set(0.12, 0.76, 0)
+  g.add(head)
+
   return g
 }
 
@@ -229,7 +289,7 @@ function buildSpaceGeometry(def: SpaceDef, form: HullForm, cutZ: number): THREE.
   for (let i = 0; i <= stations; i++) {
     const x = minX + ((maxX - minX) * i) / stations
     const u = Math.min(1, Math.max(0, (x + form.principal.loa / 2) / form.principal.loa))
-    const bottom = hullBottomY(form, u, cutZ)
+    const bottom = hullBottomYSim(form, u, cutZ)
     positions.push(x, bottom, minZ, x, bottom, maxZ, x, maxY, minZ, x, maxY, maxZ)
   }
   for (let i = 0; i < stations; i++) {
@@ -316,7 +376,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       depthWrite: false,
     }),
   )
-  sea.position.y = form.principal.draft - 1.75
+  sea.position.y = form.principal.draft - form.baselineOffsetM
   group.add(sea)
 
   // ----------------------------------------------------------------- the spaces
@@ -343,10 +403,10 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       new THREE.LineBasicMaterial({ color: COLOURS.void, transparent: true, opacity: 0.85 }),
     )
     group.add(edges)
-    const label = makeLabel(s.name, COLOURS.void, 0.46)
+    const label = makeLabel(s.name, COLOURS.void, 0.42)
     label.position.set(
       (s.aabb.minX + s.aabb.maxX) / 2,
-      s.aabb.maxY + 0.24,
+      s.aabb.maxY + 0.62,
       (s.aabb.minZ + s.aabb.maxZ) / 2,
     )
     group.add(label)
@@ -493,25 +553,80 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     agentVisuals.set(cls, { body, beacon, label, fov })
   }
 
-  // ----------------------------------------------------------------- the human
-  // A person in the stringer void, because a person can get in there and nothing
-  // in the swarm can. And one in the engine room, for scale.
-  const voidSpace = spaces.find((s) => s.id === 'stringer-fwd')
-  if (voidSpace !== undefined) {
-    const u = Math.min(1, Math.max(0, ((voidSpace.aabb.minX + voidSpace.aabb.maxX) / 2 + form.principal.loa / 2) / form.principal.loa))
-    const floor = hullBottomY(form, u, cutZ)
-    const human = makeHuman(1.8, COLOURS.human)
-    human.position.set((voidSpace.aabb.minX + voidSpace.aabb.maxX) / 2, floor, cutZ)
-    group.add(human)
-    const tag = makeLabel('a person fits in here', COLOURS.human, 0.46)
-    tag.position.set(
-      (voidSpace.aabb.minX + voidSpace.aabb.maxX) / 2,
-      floor + 2.1,
-      cutZ,
+  // ----------------------------------------------------------------- the deck
+  // The deck over the stringer void, with the two 200 mm holes in it.
+  //
+  // Without the deck the void reads as an open-topped box and the aperture
+  // arithmetic is invisible. With it, the picture is the argument: a plate of
+  // GRP with two 200 mm slots in it, and everything the swarm can do happening
+  // a long way from both.
+  const DECK_Y0 = 1.36
+  const DECK_Y1 = 1.46
+  const hatchXs = [2.8, 3.2, 5.7, 6.1] as const
+  const slotZ0 = 0.55
+  const slotZ1 = 0.75
+  const deckMinX = 1.2
+  const deckMaxX = 6.5
+  const deckHalfZ = 2.465
+
+  const deckMaterial = new THREE.MeshBasicMaterial({
+    color: 0x4a5a6b,
+    transparent: true,
+    opacity: 0.07,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+  const deckPanel = (
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+  ): void => {
+    const geometry = track(new THREE.BoxGeometry(maxX - minX, DECK_Y1 - DECK_Y0, maxZ - minZ))
+    geometry.translate((minX + maxX) / 2, (DECK_Y0 + DECK_Y1) / 2, (minZ + maxZ) / 2)
+    group.add(new THREE.Mesh(geometry, deckMaterial))
+  }
+  // The two side panels run the whole length; the centre strip is decked except
+  // where the two holes are.
+  deckPanel(deckMinX, deckMaxX, -deckHalfZ, slotZ0)
+  deckPanel(deckMinX, deckMaxX, slotZ1, deckHalfZ)
+  deckPanel(deckMinX, hatchXs[0], slotZ0, slotZ1)
+  deckPanel(hatchXs[1], hatchXs[2], slotZ0, slotZ1)
+  deckPanel(hatchXs[3], deckMaxX, slotZ0, slotZ1)
+
+  // The holes themselves, picked out in red: 200 mm of clear width, which is the
+  // number the whole product turns on.
+  for (const hx of [3.0, 5.9]) {
+    const hole = new THREE.Mesh(
+      track(new THREE.BoxGeometry(0.4, DECK_Y1 - DECK_Y0, slotZ1 - slotZ0)),
+      new THREE.MeshBasicMaterial({
+        color: COLOURS.voidUnreachable,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
     )
-    group.add(tag)
+    hole.position.set(hx, (DECK_Y0 + DECK_Y1) / 2, (slotZ0 + slotZ1) / 2)
+    group.add(hole)
   }
 
+  // ----------------------------------------------------------------- the human
+  // A person kneeling on the deck over the forward hatch, with an arm through
+  // it. Not inside the void — nobody gets inside a 200 mm hole. The picture is
+  // of a reach, because a reach is what a person can do here and a robot
+  // cannot.
+  const reaching = makeReachingPerson(COLOURS.human)
+  reaching.position.set(3.0, DECK_Y1, cutZ)
+  group.add(reaching)
+  const reachTag = makeLabel('a person can reach in here', COLOURS.human, 0.44)
+  reachTag.position.set(3.0, DECK_Y1 + 1.25, cutZ)
+  group.add(reachTag)
+
+  const holeTag = makeLabel('200 mm clear', COLOURS.voidUnreachable, 0.4)
+  holeTag.position.set(3.0, DECK_Y1 + 0.35, cutZ)
+  group.add(holeTag)
+
+  // And one standing in the engine room, so the 340 mm robot reads as small.
   const roomSpace = spaces.find((s) => s.kind === 'room')
   if (roomSpace !== undefined) {
     const human = makeHuman(1.8, COLOURS.human)
@@ -645,6 +760,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       findingGroup.remove(child)
       ;(child as THREE.Mesh).geometry?.dispose()
     }
+    let findingIndex = 0
     for (const f of frame.findings) {
       const mesh = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.16, 0),
@@ -655,9 +771,12 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       const glow = makeGlow(COLOURS.finding, 0.9)
       glow.position.set(f.x, 0.35, f.z)
       findingGroup.add(glow)
-      const label = makeLabel(f.detectorId, COLOURS.finding, 0.36)
-      label.position.set(f.x, 0.75, f.z)
+      // Staggered, because four findings in one engine room on four labels at
+      // the same height is four labels on top of each other.
+      const label = makeLabel(f.detectorId, COLOURS.finding, 0.3)
+      label.position.set(f.x, 0.8 + (findingIndex % 4) * 0.42, f.z)
       findingGroup.add(label)
+      findingIndex++
     }
 
     // -- the jobs.
