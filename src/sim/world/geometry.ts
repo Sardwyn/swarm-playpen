@@ -11,7 +11,7 @@
  * coverage metric measures something the robot never had to solve.
  */
 
-import type { Aabb, BoxObstacle, Conduit, Manifold, Port, Room } from '../types.ts'
+import type { Aabb, BoxObstacle, Conduit, Manifold, Port, Room , Volume } from '../types.ts'
 import { abs, floor } from '../math.ts'
 
 /** Spec §10: GRID_CELL 0.05 m. */
@@ -397,8 +397,22 @@ export type House = {
    * the field would put Stage E's geometry into every Stage A fixture.
    */
   readonly conduits: readonly Conduit[]
+  /**
+   * Named spaces in the volumetric manifold. Optional in content, and empty for
+   * the house.
+   *
+   * The house's ground floor is bounded by a ceiling, and the space above that
+   * ceiling is one attic. A boat is not like that: it has two enclosed volumes
+   * above the working deck, and one of them is the largest space on the vessel and
+   * the one the swarm cannot reach. Naming them is what lets the renderer darken
+   * the right box and the report talk about the right space.
+   *
+   * Optional rather than required, because a house with no named volume is a
+   * perfectly good house and requiring the field would put vessel geometry into
+   * every house fixture.
+   */
+  readonly voids: readonly Volume[]
 }
-
 /**
  * Build the ground grid for a house.
  *

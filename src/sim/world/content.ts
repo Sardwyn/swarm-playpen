@@ -7,7 +7,7 @@
  * debugging an integer that was wrong in a file.
  */
 
-import type { Aabb, BoxObstacle, Conduit, Manifold, Port, PortKind, Room } from '../types.ts'
+import type { Aabb, BoxObstacle, Conduit, Manifold, Port, PortKind, Room , Volume } from '../types.ts'
 import type { House } from './geometry.ts'
 import { sqrt } from '../math.ts'
 import houseJson from '../../content/house-01.json'
@@ -224,6 +224,17 @@ export function loadHouse(raw: unknown): House {
     throw new Error('house: spawn must be {x, z, theta}')
   }
 
+  // Named spaces in the volumetric manifold. Optional: a house has none worth
+  // naming and a vessel has two.
+  const voids = (Array.isArray(h.voids) ? (h.voids as unknown as Volume[]) : []).map((v, i) => {
+    if (typeof v.id !== 'string' || v.id.length === 0) {
+      throw new Error(`house/voids[${i}]: needs an id`)
+    }
+    if (!isAabb(v.aabb)) throw new Error(`house/voids[${i}]/${v.id}: bad aabb`)
+    return { id: v.id, name: v.name ?? v.id, aabb: v.aabb }
+  })
+  assertUniqueIds(voids.map((v) => v.id), 'void')
+
   return {
     id: h.id,
     name: (h.name as string | undefined) ?? h.id,
@@ -233,6 +244,7 @@ export function loadHouse(raw: unknown): House {
     ports,
     docks: (Array.isArray(h.docks) ? h.docks : ports.filter((p) => p.a === 'ground')) as Port[],
     conduits,
+    voids,
   }
 }
 
@@ -252,7 +264,7 @@ export function loadHouse01(): House {
 }
 
 /**
- * Every port must be inside the world. Spec §2.4.
+ * Every port must be inside the world. Spec ï¿½2.4.
  *
  * ## Why this check exists at all
  *

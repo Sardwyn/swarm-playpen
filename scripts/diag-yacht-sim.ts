@@ -106,7 +106,10 @@ const report = buildReport({
     roomName: r.name,
     fraction: roomCoverage(r.aabb),
   })),
-  restrictToManifold: 'ground',
+  // No manifold restriction. Restricting to 'ground' removes the volumetric
+  // anomalies from the match pool altogether, which would make the deckhead and
+  // stringer-void faults look missed for a reason that is an artefact of the
+  // diagnostic rather than a property of the swarm.
 })
 
 function head(t: string): void {

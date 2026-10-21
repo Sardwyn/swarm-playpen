@@ -8,7 +8,40 @@
 
   "_whyTheStringerVoidIsSpecial": "It is the largest volume on the boat and it is entered only through two 200 mm deck hatches. The ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the inchworm is confined to conduits. So the volume is unreachable, and the fault in it is the most severe one on the vessel. That is not authored — it is what the geometry does.",
 
+  "profiles": {
+    "_note": "11 samples at u = 0.0 (transom) to 1.0 (stem). Linear interpolation between samples. keelLift is the fraction of the draft by which the keel is lifted above its lowest point: 0 at the deepest station, 1 at the ends. ASSUMED - replace with the yard's lines plan.",
+    "keelLift": [0.62,0.8,0.94,1,0.97,0.86,0.68,0.46,0.26,0.1,0.02],
+    "beamPlan": [0.78,0.9,0.97,1,1,0.99,0.95,0.86,0.7,0.45,0.08],
+    "freeboard": [1.78,1.8,1.84,1.9,1.98,2.08,2.2,2.34,2.48,2.6,2.68],
+    "deadriseDeg": [19,20,21,22,24,27,31,35,40,45,50],
+    "chineRatio": [0.95,0.95,0.94,0.93,0.92,0.9,0.87,0.82,0.74,0.6,0.35]
+  },
+
+  "principal": {
+    "loa": 17.14,
+    "beam": 4.93,
+    "draft": 1.48,
+    "displacementKg": 28700,
+    "fuelLitres": 1800,
+    "freshWaterLitres": 430,
+    "source": "Sunseeker Predator 55 published specification"
+  },
+
   "bounds": { "minX": -8.57, "minY": -1.75, "maxX": 8.57, "maxY": 2.45, "minZ": -2.465, "maxZ": 2.465 },
+
+  "_voidsNote": "The volumetric-manifold spaces, the way rooms are the ground-manifold spaces. An optional extension to the house schema: the house has no enclosed volume above its ground floor that is worth naming, and a boat has two. The engine ignores this key; the renderer and the access graph read it.",
+  "voids": [
+    {
+      "id": "deckhead-engine",
+      "name": "Deckhead void over engine room",
+      "aabb": { "minX": -8.25, "minY": 0.95, "minZ": -1.75, "maxX": -2.4, "maxY": 1.36, "maxZ": 1.75 }
+    },
+    {
+      "id": "stringer-fwd",
+      "name": "Starboard stringer void, forward",
+      "aabb": { "minX": 1.2, "minY": -0.5, "minZ": 0.3, "maxX": 6.5, "maxY": 1.36, "maxZ": 1.0 }
+    }
+  ],
 
   "rooms": [
     {

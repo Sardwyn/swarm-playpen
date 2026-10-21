@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .vscode/
 scripts/.s9-cache.json
+.shots/
+shotserver.mjs

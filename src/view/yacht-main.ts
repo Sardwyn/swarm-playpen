@@ -1,37 +1,110 @@
 /**
- * Browser entry point for the yacht domain scene.
+ * Browser entry point for the yacht domain: run the swarm on the boat, record the
+ * run, and play it back.
  *
- * ## What this is
+ * ## What is on screen
  *
- * The domain model, rendered. There is no swarm in it yet — the simulation still
- * runs on the house. What is here is the vessel, its void network, the access
- * points, and the reachability, which is the part of the product that decides
- * whether there is a product.
+ * The boat, cut open, with the swarm's coverage drawn into it, and the one space
+ * the swarm could not reach drawn dark. The panel carries the numbers, the verdict
+ * on every authored fault, and the list of assumptions the whole thing rests on.
  *
- * The panel says so, in those words. A demo that implies more than it contains is
- * the thing this whole project is arguing against.
+ * ## The replay is a recording, not a re-simulation
  *
- * ## The scene reads the same content the diagnostic reads
- *
- * `scripts/diag-yacht-form.ts` prints the ASCII inboard profile of exactly this
- * content, and the two must agree. If the scene and the diagnostic ever disagree,
- * one of them is lying, and the diagnostic is the one with the tests.
+ * The simulator is deterministic, so the run could be re-run to seek. But a scrubber
+ * that stutters is a scrubber nobody drags, and the take is the run recorded once
+ * with its coverage delta-encoded. The log hash in the take header is the hash of
+ * the run that produced it, which is the only claim worth making about a replay.
  */
 
 import * as THREE from 'three'
-import { yacht as model } from '../sim/world/yacht-content.ts'
-import { profileArea, totalProfileArea, reachableProfileArea } from '../sim/world/yacht.ts'
+import { createRun, defaultConfig, step } from '../sim/sim/run.ts'
+import { buildReport } from '../sim/report/report.ts'
+import { TakeRecorder, frameFromTake, observedFraction, regionCoverage } from '../sim/report/take.ts'
+import { buildVerdict } from '../sim/report/verdict.ts'
+import { GROUND_BOT } from '../sim/sim/agents.ts'
+import { HOVER, INCHWORM } from '../sim/types.ts'
+import {
+  yachtHouse,
+  yachtTruth,
+  yachtForm,
+  yachtAssumptions,
+  YACHT_SPAWN,
+  YACHT_INCHWORM_HOME,
+} from '../sim/world/yacht-sim.ts'
 import { buildYachtScene } from './yacht-scene.ts'
+import type { SpaceDef } from './yacht-scene.ts'
 import { OrbitShim } from './viewer.ts'
 
 const CUT_Z = 0.65
+const SEED = 1
+const NOISE = 1
+const MISSION_SECONDS = 300
+const TOTAL_TICKS = 3000
+const EVERY_N_TICKS = 10
 
+// ------------------------------------------------------------------ the run
+const run = createRun(
+  yachtHouse,
+  defaultConfig({
+    seed: SEED,
+    noiseMultiplier: NOISE,
+    missionSeconds: MISSION_SECONDS,
+    agents: [GROUND_BOT, INCHWORM, HOVER],
+    inchwormHomePort: YACHT_INCHWORM_HOME,
+  }),
+  YACHT_SPAWN,
+  yachtTruth,
+)
+
+const recorder = new TakeRecorder({
+  contentId: yachtHouse.id,
+  truth: yachtTruth,
+  everyNTicks: EVERY_N_TICKS,
+})
+
+while (run.tick < TOTAL_TICKS && !run.done) {
+  step(run)
+  recorder.record(run)
+}
+
+const finalReport = buildReport({
+  runId: `yacht-${yachtHouse.id}-seed-${SEED}`,
+  tick: run.tick,
+  simSeconds: run.tick / 10,
+  candidates: run.candidates,
+  truth: run.truth,
+  rooms: yachtHouse.rooms,
+  coverage: [
+    {
+      manifold: 'ground',
+      fraction: 0,
+      observedCells: 0,
+      totalCells: 0,
+    },
+  ],
+  regionCoverage: [],
+})
+const take = recorder.finish(run, finalReport)
+
+// The spaces: the ground-manifold rooms and the volumetric ones, from the same
+// content file the simulator read.
+const spaces: SpaceDef[] = [
+  ...yachtHouse.rooms.map((r) => ({ id: r.id, name: r.name, aabb: r.aabb, kind: 'room' as const })),
+  ...yachtHouse.voids.map((v) => ({ id: v.id, name: v.name, aabb: v.aabb, kind: 'void' as const })),
+]
+
+// Which agents live on which manifold, for the verdict's classification.
+const manifoldAgents = new Map<string, string[]>()
+for (const a of run.agents) {
+  const list = manifoldAgents.get(a.manifold) ?? []
+  list.push(`${a.spec.id} (${a.spec.cls})`)
+  manifoldAgents.set(a.manifold, list)
+}
+
+// ------------------------------------------------------------------ renderer
 const stage = document.getElementById('stage')!
 const side = document.getElementById('side')!
 
-// ------------------------------------------------------------------ renderer
-// `preserveDrawingBuffer` so the canvas can be read back — a demo that cannot
-// produce a still is a demo you cannot put in a deck.
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.setSize(stage.clientWidth, stage.clientHeight)
@@ -39,8 +112,7 @@ stage.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x0d1117)
-scene.fog = new THREE.Fog(0x0d1117, 40, 130)
-
+scene.fog = new THREE.Fog(0x0d1117, 60, 220)
 scene.add(new THREE.AmbientLight(0xffffff, 0.55))
 const key = new THREE.DirectionalLight(0xc9d1d9, 0.8)
 key.position.set(14, 20, 12)
@@ -48,117 +120,168 @@ scene.add(key)
 const rim = new THREE.DirectionalLight(0x4fd1c5, 0.4)
 rim.position.set(-16, 7, -14)
 scene.add(rim)
+const engineLight = new THREE.PointLight(0xed8936, 3.2, 12, 2)
+engineLight.position.set(-5.4, 0.4, CUT_Z)
+scene.add(engineLight)
 
-// A warm light in the engine room, because the engine room is where the machine
-// is and the machine is the only heat source in the boat.
-const engine = new THREE.PointLight(0xed8936, 3.2, 12, 2)
-engine.position.set(-5.4, 2.1, CUT_Z)
-scene.add(engine)
-
-const yacht = buildYachtScene(model, CUT_Z)
+const yacht = buildYachtScene({ form: yachtForm, spaces, cutZ: CUT_Z })
 scene.add(yacht.group)
 
-const camera = new THREE.PerspectiveCamera(
-  45,
-  stage.clientWidth / stage.clientHeight,
-  0.05,
-  400,
-)
+const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.05, 400)
 const orbit = new OrbitShim(camera, renderer.domElement)
-orbit.target.set(-0.8, 1.4, 0)
-orbit.yaw = -0.44
-orbit.pitch = 0.13
-orbit.distance = 22
+orbit.target.set(0, 1.5, 0)
+orbit.yaw = 1.15
+orbit.pitch = 0.2
+orbit.distance = 23
 
-// ---------------------------------------------------------------------- panel
-const voidTotal = totalProfileArea(model.regions, 'void')
-const voidPerson = reachableProfileArea(model.regions, 'void', model.personReachability)
-const voidCrawler = reachableProfileArea(model.regions, 'void', model.crawlerReachability)
+// ----------------------------------------------------------------- playback
+let frameIndex = 0
+let playing = true
+let lastTime = 0
+let framesPerSecond = 12
 
+const scrubber = document.getElementById('scrub') as HTMLInputElement | null
+const playButton = document.getElementById('play') as HTMLButtonElement | null
+const tickLabel = document.getElementById('tick') as HTMLElement | null
+const coverageLabel = document.getElementById('coverage') as HTMLElement | null
+
+function showFrame(index: number): void {
+  frameIndex = Math.max(0, Math.min(take.frames.length - 1, index))
+  const frame = frameFromTake(take, frameIndex)
+  yacht.setFrame(frame)
+  if (scrubber !== null) scrubber.value = String(frameIndex)
+  if (tickLabel !== null) {
+    tickLabel.textContent = `tick ${frame.tick} / ${run.tick}  ·  t+${frame.simSeconds.toFixed(1)} s`
+  }
+  if (coverageLabel !== null) {
+    const pct = observedFraction(take, frameIndex) * 100
+    coverageLabel.textContent = `ground coverage ${pct.toFixed(1)}%`
+  }
+  updatePanel()
+}
+
+if (scrubber !== null) {
+  scrubber.max = String(Math.max(0, take.frames.length - 1))
+  scrubber.addEventListener('input', () => {
+    playing = false
+    if (playButton !== null) playButton.textContent = '▶ play'
+    showFrame(Number(scrubber.value))
+  })
+}
+if (playButton !== null) {
+  playButton.addEventListener('click', () => {
+    playing = !playing
+    playButton.textContent = playing ? '❚❚ pause' : '▶ play'
+  })
+}
+
+function loop(now: number): void {
+  const dt = lastTime === 0 ? 0 : (now - lastTime) / 1000
+  lastTime = now
+  if (playing) {
+    const next = frameIndex + dt * framesPerSecond
+    if (next >= take.frames.length - 1) {
+      showFrame(0)
+    } else {
+      showFrame(Math.floor(next))
+    }
+  }
+  orbit.update()
+  renderer.render(scene, camera)
+  requestAnimationFrame(loop)
+}
+
+// -------------------------------------------------------------------- panel
 function row(a: string, b: string, cls = ''): string {
   return `<tr class="${cls}"><td>${a}</td><td class="det">${b}</td></tr>`
 }
 
-side.innerHTML = `
-  <h2>${model.id}</h2>
-  <p class="sub">Domain model, rendered. No swarm yet — the simulation still runs on the house.</p>
+const finalFindings = frameFromTake(take, take.frames.length - 1).findings
+const verdict = buildVerdict(finalFindings, yachtTruth, manifoldAgents)
+const missed = verdict.filter((v) => !v.found)
+const architectural = missed.filter((v) => v.kind === 'ARCHITECTURE')
 
-  <h3>Principal</h3>
-  <table>
-    ${row('Length overall', `${model.principal.loa.toFixed(2)} m`)}
-    ${row('Beam', `${model.principal.beam.toFixed(2)} m`)}
-    ${row('Draft', `${model.principal.draft.toFixed(2)} m`)}
-    ${row('Displacement', `${model.principal.displacementKg.toLocaleString()} kg`)}
-    ${row('Source', model.principal.source)}
-  </table>
+function updatePanel(): void {
+  const frame = frameFromTake(take, frameIndex)
+  const live = buildVerdict(frame.findings, yachtTruth, manifoldAgents)
+  const liveMissed = live.filter((v) => !v.found)
 
-  <h3>Voids</h3>
-  <table>
-    ${row('Total profile area', `${voidTotal.toFixed(1)} m²`)}
-    ${row('Reachable by a person', `${voidPerson.toFixed(1)} m² (${((voidPerson / voidTotal) * 100).toFixed(0)}%)`, voidPerson === voidTotal ? 'ok' : 'warn')}
-    ${row('Reachable by the crawler', `${voidCrawler.toFixed(1)} m² (${((voidCrawler / voidTotal) * 100).toFixed(0)}%)`, voidCrawler === voidTotal ? 'ok' : 'warn')}
-    ${row('Reachable by neither', `${(voidTotal - Math.max(voidPerson, voidCrawler)).toFixed(1)} m²`, 'warn')}
-    ${row('Crawler diameter', `${model.crawlerDiameterMm} mm`)}
-  </table>
+  side.innerHTML = `
+    <h2>${yachtHouse.name ?? yachtHouse.id}</h2>
+    <p class="sub">The swarm, run on the vessel. Recorded and replayed; the log hash is the hash of the run.</p>
 
-  <h3>Regions</h3>
-  <table>
-    ${model.regions
-      .map((r) => {
-        const person = model.personReachability.has(r.id)
-        const crawler = model.crawlerReachability.has(r.id)
-        const cls = r.kind === 'void' && !person ? 'warn' : r.kind === 'void' ? 'ok' : 'muted'
-        return row(
-          r.name,
-          `${profileArea(r).toFixed(1)} m² — person ${person ? 'yes' : 'NO'}, crawler ${crawler ? 'yes' : 'NO'}`,
-          cls,
+    <h3>Principal</h3>
+    <table>
+      ${row('Length overall', '17.14 m')}
+      ${row('Beam', '4.93 m')}
+      ${row('Draft', '1.48 m')}
+      ${row('Source', 'Sunseeker Predator 55 published specification')}
+    </table>
+
+    <h3>This frame</h3>
+    <table>
+      ${row('Tick', `${frame.tick}`)}
+      ${row('Engine room coverage', `${(regionCoverage(take, frameIndex, yachtHouse.rooms[0]!.aabb) * 100).toFixed(1)}%`)}
+      ${row('Whole-boat coverage', `${(observedFraction(take, frameIndex) * 100).toFixed(1)}%`)}
+      ${row('Findings', String(frame.findings.length))}
+      ${row('Log hash', take.logHash)}
+      ${row('Recorded frames', String(take.frames.length))}
+    </table>
+
+    <h3>The verdict</h3>
+    <table>
+      ${live
+        .map(
+          (v) =>
+            row(
+              `${v.id} · ${v.cls}`,
+              `sev ${v.severity.toFixed(2)} · ${v.kind}`,
+              v.found ? 'ok' : v.kind === 'ARCHITECTURE' ? 'warn' : 'muted',
+            ),
         )
-      })
-      .join('')}
-  </table>
+        .join('')}
+    </table>
 
-  <h3>Faults</h3>
-  <table>
-    ${model.faults
-      .map((f) => {
-        const person = model.personReachability.has(f.region)
-        return row(f.class, `${f.region}${person ? '' : ' — UNREACHABLE'}`, person ? '' : 'warn')
-      })
-      .join('')}
-  </table>
+    <h3>Why the misses</h3>
+    ${
+      liveMissed.length === 0
+        ? '<p class="sub">Nothing missed in this frame.</p>'
+        : liveMissed
+            .map(
+              (v) =>
+                `<p class="sub ${v.kind === 'ARCHITECTURE' ? 'warn' : 'muted'}">` +
+                `<b>${v.id}</b> — ${v.kind}<br>${v.detail}` +
+                (v.reason === undefined ? '' : `<br>${v.reason}`) +
+                `</p>`,
+            )
+            .join('')
+    }
 
-  <h3>Assumptions</h3>
-  <p class="sub warn">None of the above is a measurement. Principal characteristics are Sunseeker's published figures; every profile, bulkhead, deck height, hatch and void width is assumed.</p>
-  <ul>${model.assumptions.map((a) => `<li class="det">${a}</li>`).join('')}</ul>
+    <h3>The apertures</h3>
+    <table>
+      ${row('Deck hatch clear width', '200 mm')}
+      ${row('Ground bot', `340 mm across (r = ${GROUND_BOT.radius} m)`)}
+      ${row('Hover bot', `240 mm span, needs 400 mm of clearance (r = ${HOVER.radius} m)`)}
+      ${row('Inchworm', `80 mm, but confined to conduits`)}
+      ${row('A person', 'can get through a 200 mm hatch')}
+      ${row('Architectural misses', String(architectural.length), architectural.length > 0 ? 'warn' : 'ok')}
+    </table>
 
-  <h3>Cut plane</h3>
-  <p class="sub">z = ${CUT_Z.toFixed(2)} m, starboard of centreline, through the centre of a stringer void. A centreline cut misses every void, and the voids are the subject.</p>
-`
+    <h3>Assumptions</h3>
+    <p class="sub warn">None of this is a measurement. The principal characteristics are Sunseeker's published figures; every profile, bulkhead, deck height, hatch size and pipe route is assumed.</p>
+    <ul>${yachtAssumptions.map((a) => `<li class="det">${a}</li>`).join('')}</ul>
+  `
+}
 
-// A handle on the scene, for the console and for automated inspection. A demo you
-// cannot interrogate is a demo you cannot debug.
-Object.assign(window as unknown as Record<string, unknown>, {
-  __yacht: { scene, yacht, renderer, camera, orbit, model },
-})
+showFrame(0)
+requestAnimationFrame(loop)
 
-// --------------------------------------------------------------------- loop
-function resize(): void {
+window.addEventListener('resize', () => {
   camera.aspect = stage.clientWidth / stage.clientHeight
   camera.updateProjectionMatrix()
   renderer.setSize(stage.clientWidth, stage.clientHeight)
-}
-window.addEventListener('resize', resize)
+})
 
-let raf = 0
-function frame(): void {
-  orbit.update()
-  renderer.render(scene, camera)
-  raf = requestAnimationFrame(frame)
-}
-frame()
-
-window.addEventListener('beforeunload', () => {
-  cancelAnimationFrame(raf)
-  yacht.dispose()
-  renderer.dispose()
+Object.assign(window as unknown as Record<string, unknown>, {
+  __yacht: { scene, yacht, renderer, camera, orbit, take, run, showFrame },
 })

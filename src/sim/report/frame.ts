@@ -53,6 +53,31 @@ export type TruthFrame = {
   readonly manifold: string
 }
 
+/**
+ * The volumetric coverage record, for one volumetric agent.
+ *
+ * The frame already carried the ground manifold's coverage as a per-cell
+ * observation count. It did not carry the volumetric manifold's, and that is a gap
+ * rather than an omission: on a vessel the interesting space is above the working
+ * deck, and a frame that cannot say what was looked at up there cannot show the
+ * most important fact about a boat — which is what was not.
+ *
+ * The raster is a plan projection, because a raster indexed by height would need a
+ * 3-D structure to answer a question that is only ever asked per plan position.
+ */
+export type RasterFrame = {
+  readonly agentId: string
+  readonly cellSizeM: number
+  readonly minX: number
+  readonly minZ: number
+  readonly width: number
+  readonly depth: number
+  /** Readings per cell. 0 means the agent never looked here. */
+  readonly observations: Uint16Array
+  /** Mean deviation from the ambient baseline, kelvin. */
+  readonly meanDeviationK: Float32Array
+}
+
 export type SimFrame = {
   readonly tick: number
   readonly simSeconds: number
@@ -71,6 +96,8 @@ export type SimFrame = {
   readonly findings: readonly Finding[]
   /** Authored anomalies. For the debug overlay only, never for the report. */
   readonly truth: readonly TruthFrame[]
+  /** Volumetric coverage, one raster per volumetric agent. */
+  readonly rasters: readonly RasterFrame[]
   readonly report: InspectionReport
 }
 
@@ -164,6 +191,34 @@ export function frameFromRun(
         }))
       : []
 
+  // The volumetric coverage, one raster per volumetric agent.
+  //
+  // Copied out of the sparse cell array into dense typed arrays, because a frame
+  // that a renderer has to walk to find the non-empty cells is a frame that every
+  // consumer has to walk. The rasters are small — one per agent, at 0.25 m — and
+  // the copy is made once per frame.
+  const rasters: RasterFrame[] = []
+  for (const [agentId, raster] of run.hoverRasters) {
+    const observations = new Uint16Array(raster.width * raster.depth)
+    const meanDeviationK = new Float32Array(raster.width * raster.depth)
+    for (let i = 0; i < raster.cells.length; i++) {
+      const cell = raster.cells[i]
+      if (cell === undefined) continue
+      observations[i] = cell.observations
+      meanDeviationK[i] = cell.meanDeviationK
+    }
+    rasters.push({
+      agentId,
+      cellSizeM: raster.cellSizeM,
+      minX: raster.minX,
+      minZ: raster.minZ,
+      width: raster.width,
+      depth: raster.depth,
+      observations,
+      meanDeviationK,
+    })
+  }
+
   return {
     tick: run.tick,
     simSeconds: run.tick / 10,
@@ -185,6 +240,7 @@ export function frameFromRun(
     jobs,
     findings: report.findings,
     truth,
+    rasters,
     report,
   }
 }

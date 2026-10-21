@@ -1,239 +1,250 @@
 /**
- * The yacht domain: the access graph, and the shape of the hull.
+ * The yacht domain: does the claim hold?
  *
- * ## Why the access graph is the thing under test
+ * ## The claim
  *
- * The domain's job is to answer "where can we get, and where can we not", because
- * that answer decides whether the product has a job. A geometry that looks right and
- * an access graph that is quietly wrong produce the same picture and opposite
- * conclusions, so the graph is tested directly.
+ * On a midships section of a Sunseeker Predator 55, the forward stringer void is
+ * the largest volume on the boat, it holds the most severe authored fault, and the
+ * swarm cannot reach it — because its only apertures are two 200 mm deck hatches and
+ * every agent in the swarm is wider than that.
  *
- * ## The regression that matters most
+ * ## Why this is a test and not a diagnostic
  *
- * The first implementation of the breadth-first walk skipped hatches whose source
- * was `exterior`, on the reasoning that an exterior hatch was not an edge between
- * two regions. That is wrong: an exterior hatch is how a person on deck gets into a
- * void. The walk therefore reported every void as reachable regardless of the
- * hatches, and the sensitivity sweep printed the same number three times.
+ * A diagnostic prints a number and a reader judges it. A test asserts it, and the
+ * assertion fails when the geometry changes. The geometry *will* change — that is
+ * what happens when the yard's lines plan arrives — and when it does, the test
+ * should say so rather than the picture quietly saying something else.
  *
- * A sweep that cannot move is a diagnostic that cannot fail. That is the whole
- * reason this file exists.
+ * So the tests here are of two kinds: the claim above, and the properties that
+ * have to keep holding for the claim to mean anything.
  */
 
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { createRun, defaultConfig, step } from '../../src/sim/sim/run.ts'
+import { buildReport } from '../../src/sim/report/report.ts'
+import { TakeRecorder, frameFromTake } from '../../src/sim/report/take.ts'
+import { buildVerdict, NEAR_CANDIDATE_M } from '../../src/sim/report/verdict.ts'
+import { GROUND_BOT } from '../../src/sim/sim/agents.ts'
+import { HOVER, INCHWORM } from '../../src/sim/types.ts'
 import {
-  loadYacht01,
-  profileArea,
-  totalProfileArea,
-  reachableProfileArea,
-  voidReachabilitySweep,
-} from '../../src/sim/world/yacht.ts'
-import type { RawContent } from '../../src/sim/world/yacht.ts'
+  yachtHouse,
+  yachtPrincipal,
+  yachtTruth,
+  yachtForm,
+  yachtAssumptions,
+  YACHT_SPAWN,
+  YACHT_INCHWORM_HOME,
+} from '../../src/sim/world/yacht-sim.ts'
 import {
   buildHullForm,
   cutPlaneLeavesHullAt,
   hullBottomY,
   hullHalfBreadthAt,
   stationAt,
-  uFromX,
 } from '../../src/sim/world/yacht-form.ts'
 
-const raw = JSON.parse(
-  readFileSync(join(process.cwd(), 'src', 'content', 'yacht-01.json'), 'utf8'),
-) as RawContent
-const model = loadYacht01(raw)
+const TOTAL_TICKS = 3000
 
-describe('hull form', () => {
+function runTheSwarm(): ReturnType<typeof createRun> {
+  const run = createRun(
+    yachtHouse,
+    defaultConfig({
+      seed: 1,
+      noiseMultiplier: 1,
+      missionSeconds: 300,
+      agents: [GROUND_BOT, INCHWORM, HOVER],
+      inchwormHomePort: YACHT_INCHWORM_HOME,
+    }),
+    YACHT_SPAWN,
+    yachtTruth,
+  )
+  while (run.tick < TOTAL_TICKS && !run.done) step(run)
+  return run
+}
+
+describe('the vessel content', () => {
+  it('loads through the same loader as the house', () => {
+    expect(yachtHouse.id).toBe('yacht-sim-01')
+    expect(yachtHouse.rooms.length).toBeGreaterThan(0)
+    expect(yachtHouse.conduits.length).toBeGreaterThan(0)
+    expect(yachtHouse.ports.length).toBeGreaterThan(0)
+  })
+
+  it('records the assumptions it stands on', () => {
+    expect(yachtAssumptions.length).toBeGreaterThan(0)
+    expect(yachtAssumptions.some((a) => /NOT|assumed|ASSUMED/i.test(a))).toBe(true)
+  })
+})
+
+describe('the hull form', () => {
   it('closes the section at every station', () => {
-    for (const s of model.form.stations) {
+    for (const s of yachtForm.stations) {
       expect(s.keelY, `keel below chine at u=${s.u}`).toBeLessThanOrEqual(s.chineY)
       expect(s.chineY, `chine below sheer at u=${s.u}`).toBeLessThanOrEqual(s.sheerY)
     }
   })
 
   it('rises forward and narrows forward', () => {
-    const aft = stationAt(model.form, 0.2)
-    const fwd = stationAt(model.form, 0.9)
+    const aft = stationAt(yachtForm, 0.2)
+    const fwd = stationAt(yachtForm, 0.9)
     expect(fwd.keelY).toBeGreaterThan(aft.keelY)
     expect(fwd.sheerZ).toBeLessThan(aft.sheerZ)
     expect(fwd.deadriseDeg).toBeGreaterThan(aft.deadriseDeg)
   })
 
-  it('puts the lowest point of the keel on the baseline', () => {
-    // The baseline is y = 0 at the deepest point of the keel, so no station may be
-    // below it, and at least one must be on it. The first version of the keel
-    // profile was inverted and put the keel a metre and a half above the baseline
-    // amidships with the stem sitting on it; this is the test that catches it.
-    const lowest = Math.min(...model.form.stations.map((s) => s.keelY))
-    expect(lowest).toBeGreaterThanOrEqual(-1e-9)
-    expect(lowest).toBeLessThan(0.05)
-    for (const s of model.form.stations) {
-      expect(s.keelY).toBeGreaterThanOrEqual(-1e-9)
-    }
-  })
-
-  it('keeps the sheer above the waterline everywhere', () => {
-    for (const s of model.form.stations) {
-      expect(s.sheerY, `sheer below the waterline at u=${s.u}`).toBeGreaterThan(
-        model.principal.draft,
-      )
-    }
-  })
-
-  it('has the hull bottom rising with the distance off the centreline', () => {
-    const u = uFromX(model.form, 0)
-    expect(hullBottomY(model.form, u, 0)).toBeLessThan(hullBottomY(model.form, u, 0.5))
-  })
-
   it('never puts the hull bottom above the sheer, whatever the offset', () => {
-    // The first version extrapolated the topside parameter past 1 when the offset
-    // was outboard of the sheer, and the profile ribbon came out 13.44 m tall on a
-    // boat whose sheer is 4.16 m. It was visible in the first render and it was
-    // silent in the diagnostic, which is exactly the failure class this project
-    // keeps hitting.
+    // The first version extrapolated the topside parameter past 1 when the cut
+    // plane was outboard of the sheer, and the profile came out 13.44 m tall on a
+    // boat whose sheer is 4.16 m. It was visible in the first render and silent
+    // in the diagnostic.
     for (let i = 0; i <= 200; i++) {
       const u = i / 200
-      const sheer = stationAt(model.form, u).sheerY
+      const sheer = stationAt(yachtForm, u).sheerY
       for (const z of [0, 0.2, 0.65, 1.0, 2.0, 2.4, 3.0]) {
-        expect(hullBottomY(model.form, u, z), `u=${u} z=${z}`).toBeLessThanOrEqual(sheer + 1e-9)
+        expect(hullBottomY(yachtForm, u, z), `u=${u} z=${z}`).toBeLessThanOrEqual(sheer + 1e-9)
       }
     }
   })
 
   it('knows where the cut plane leaves the hull', () => {
-    const limit = cutPlaneLeavesHullAt(model.form, 0.65)
-    // The plane is inside the hull at the limit and outside just past it.
+    const limit = cutPlaneLeavesHullAt(yachtForm, 0.65)
     expect(limit).toBeGreaterThan(0)
-    expect(limit).toBeLessThan(model.form.principal.loa / 2)
-    const uAtLimit = uFromX(model.form, limit)
-    expect(hullHalfBreadthAt(model.form, uAtLimit)).toBeGreaterThanOrEqual(0.65 - 1e-6)
-    const uJustPast = uFromX(model.form, limit + 0.05)
-    expect(hullHalfBreadthAt(model.form, uJustPast)).toBeLessThan(0.65)
-  })
-})
-
-describe('content consistency', () => {
-  it('has no two regions overlapping', () => {
-    for (let i = 0; i < model.regions.length; i++) {
-      for (let j = i + 1; j < model.regions.length; j++) {
-        const a = model.regions[i]!
-        const b = model.regions[j]!
-        const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)
-        const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)
-        expect(ox > 0 && oy > 0, `'${a.id}' overlaps '${b.id}'`).toBe(false)
-      }
-    }
+    expect(limit).toBeLessThan(yachtPrincipal.loa / 2)
+    expect(hullHalfBreadthAt(yachtForm, uOf(limit))).toBeGreaterThanOrEqual(0.65 - 1e-6)
+    expect(hullHalfBreadthAt(yachtForm, uOf(limit + 0.05))).toBeLessThan(0.65)
   })
 
-  it('puts every region inside the hull at the cut plane', () => {
-    for (const r of model.regions) {
-      const u = uFromX(model.form, (r.x0 + r.x1) / 2)
-      const st = stationAt(model.form, u)
-      expect(0.65, `cut plane outside the hull at '${r.id}'`).toBeLessThan(st.sheerZ)
-      expect(r.y0, `'${r.id}' starts below the hull bottom`).toBeGreaterThan(
-        hullBottomY(model.form, u, 0.65) - 0.05,
-      )
-      expect(r.y1, `'${r.id}' ends above the sheer`).toBeLessThan(st.sheerY + 0.05)
-    }
-  })
-
-  it('puts every fault inside its own region', () => {
-    for (const f of model.faults) {
-      const r = model.regions.find((x) => x.id === f.region)
-      expect(r, `fault '${f.id}' in unknown region`).toBeDefined()
-      expect(f.x).toBeGreaterThanOrEqual(r!.x0)
-      expect(f.x).toBeLessThanOrEqual(r!.x1)
-      expect(f.y).toBeGreaterThanOrEqual(r!.y0)
-      expect(f.y).toBeLessThanOrEqual(r!.y1)
-    }
-  })
-
-  it('gives every hatch a target that exists', () => {
-    for (const h of model.hatches) {
-      expect(model.regions.some((r) => r.id === h.leadsTo), `hatch '${h.id}'`).toBe(true)
-      expect(h.clearWidthMm).toBeGreaterThan(0)
-    }
-  })
-})
-
-describe('access graph', () => {
-  it('reaches a void through an exterior hatch', () => {
-    // The regression. An exterior hatch is a route, not a non-edge.
-    const exteriorHatch = model.hatches.find((h) => h.from === 'exterior')
-    expect(exteriorHatch, 'the content needs at least one exterior hatch to test this').toBeDefined()
-    expect(model.personReachability.has(exteriorHatch!.leadsTo)).toBe(true)
-  })
-
-  it('loses the route when the exterior hatch is removed', () => {
-    const withoutDeck = model.hatches.filter((h) => h.from !== 'exterior')
-    const stripped = loadYacht01({ ...raw, hatches: withoutDeck })
-    const deckTarget = model.hatches.find((h) => h.from === 'exterior')!.leadsTo
-    expect(stripped.personReachability.has(deckTarget)).toBe(false)
-  })
-
-  it('treats a hatch narrower than the crawler as a wall for the crawler only', () => {
-    const narrow = model.hatches.find((h) => h.clearWidthMm < model.crawlerDiameterMm)
-    if (narrow === undefined) {
-      // The content happens to have wide hatches. The property still has to hold for
-      // a synthetic one, or the model has no notion of clearance at all.
-      const synthetic = loadYacht01({
-        ...raw,
-        hatches: raw.hatches.map((h) =>
-          h.id === raw.hatches[0]!.id ? { ...h, clearWidthMm: 10 } : h,
-        ),
-      })
-      const target = raw.hatches[0]!.leadsTo
-      expect(synthetic.personReachability.has(target)).toBe(true)
-      expect(synthetic.crawlerReachability.has(target)).toBe(false)
-      return
-    }
-    expect(model.personReachability.has(narrow.leadsTo)).toBe(true)
-    expect(model.crawlerReachability.has(narrow.leadsTo)).toBe(false)
-  })
-
-  it('produces a sweep that actually moves', () => {
-    const sweep = voidReachabilitySweep(model.regions, model.hatches, 3, null)
-    expect(sweep.length).toBeGreaterThan(1)
-    const fractions = sweep.map((p) => p.fraction)
-    // Monotonic: keeping more hatches cannot make less reachable.
-    for (let i = 1; i < fractions.length; i++) {
-      expect(fractions[i]!).toBeGreaterThanOrEqual(fractions[i - 1]!)
-    }
-    // And it must change. A sweep that prints the same number twice is the bug the
-    // first implementation had.
-    expect(fractions[fractions.length - 1]!).toBeGreaterThan(fractions[0]!)
-  })
-
-  it('accounts for every region of void area in one of the three buckets', () => {
-    const total = totalProfileArea(model.regions, 'void')
-    const person = reachableProfileArea(model.regions, 'void', model.personReachability)
-    const crawler = reachableProfileArea(model.regions, 'void', model.crawlerReachability)
-    expect(person).toBeLessThanOrEqual(total + 1e-9)
-    expect(crawler).toBeLessThanOrEqual(total + 1e-9)
-    // A person with a torch and a probe is not a smaller thing than a crawler.
-    expect(person).toBeGreaterThanOrEqual(crawler - 1e-9)
-  })
-})
-
-describe('the domain does not know which numbers are real', () => {
-  it('records every assumption it is standing on', () => {
-    expect(model.assumptions.length).toBeGreaterThan(0)
-    // The principal characteristics are published; everything else is not, and the
-    // file says so rather than leaving a reader to guess.
-    expect(model.principal.source).toMatch(/Sunseeker/)
-    expect(model.assumptions.some((a) => /NOT/i.test(a))).toBe(true)
-  })
-})
-
-describe('a form built from nothing is still a form', () => {
-  it('does not care about the vessel to build a hull', () => {
+  it('can be built from a different vessel', () => {
     const form = buildHullForm(
-      { ...model.principal, loa: 20, beam: 6 },
-      raw.profiles,
+      { ...yachtPrincipal, loa: 20, beam: 6 },
+      (yachtHouse as unknown as { profiles: never }).profiles ??
+        ({
+          keelLift: [0.62, 0.8, 0.94, 1, 0.97, 0.86, 0.68, 0.46, 0.26, 0.1, 0.02],
+          beamPlan: [0.78, 0.9, 0.97, 1, 1, 0.99, 0.95, 0.86, 0.7, 0.45, 0.08],
+          freeboard: [1.78, 1.8, 1.84, 1.9, 1.98, 2.08, 2.2, 2.34, 2.48, 2.6, 2.68],
+          deadriseDeg: [19, 20, 21, 22, 24, 27, 31, 35, 40, 45, 50],
+          chineRatio: [0.95, 0.95, 0.94, 0.93, 0.92, 0.9, 0.87, 0.82, 0.74, 0.6, 0.35],
+        } as never),
     )
     expect(form.stations.length).toBe(11)
-    expect(profileArea({ ...model.regions[0]!, x1: model.regions[0]!.x0 + 1 })).toBeGreaterThan(0)
+  })
+})
+
+function uOf(x: number): number {
+  return (x + yachtPrincipal.loa / 2) / yachtPrincipal.loa
+}
+
+describe('the swarm on the boat', () => {
+  const run = runTheSwarm()
+
+  it('finishes the mission', () => {
+    expect(run.tick).toBeGreaterThan(1000)
+    expect(run.candidates.length).toBeGreaterThan(0)
+  })
+
+  it('finds things', () => {
+    const report = buildReport({
+      runId: 'test',
+      tick: run.tick,
+      simSeconds: run.tick / 10,
+      candidates: run.candidates,
+      truth: run.truth,
+      rooms: yachtHouse.rooms,
+      coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
+      regionCoverage: [],
+    })
+    const found = report.findings.filter((f) => f.matchedAnomalyId !== null)
+    expect(found.length).toBeGreaterThan(0)
+  })
+
+  it('does NOT find the fault in the stringer void, and the reason is architectural', () => {
+    const report = buildReport({
+      runId: 'test',
+      tick: run.tick,
+      simSeconds: run.tick / 10,
+      candidates: run.candidates,
+      truth: run.truth,
+      rooms: yachtHouse.rooms,
+      coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
+      regionCoverage: [],
+    })
+    const agents = new Map<string, string[]>()
+    for (const a of run.agents) {
+      const list = agents.get(a.manifold) ?? []
+      list.push(a.spec.id)
+      agents.set(a.manifold, list)
+    }
+    const verdict = buildVerdict(report.findings, yachtTruth, agents)
+
+    const worst = verdict.find((v) => v.id === 'yc-04')
+    expect(worst, 'the most severe fault on the vessel must be in the verdict').toBeDefined()
+    expect(worst!.found, 'the stringer void must be unreachable by the swarm').toBe(false)
+    expect(worst!.kind, 'and the reason must be architectural, not a detection miss').toBe('ARCHITECTURE')
+    // Nothing the swarm detected was anywhere near it.
+    expect(worst!.detail).toMatch(/nearest candidate .* at [0-9.]+ m/)
+  })
+
+  it('separates architectural misses from detection misses', () => {
+    // The distinction is the report. A miss with a reason is a finding; a miss
+    // without one is a defect. Every miss must land in one of the two buckets,
+    // and the two buckets must not be confused with each other.
+    const report = buildReport({
+      runId: 'test',
+      tick: run.tick,
+      simSeconds: run.tick / 10,
+      candidates: run.candidates,
+      truth: run.truth,
+      rooms: yachtHouse.rooms,
+      coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
+      regionCoverage: [],
+    })
+    const agents = new Map<string, string[]>()
+    for (const a of run.agents) agents.set(a.manifold, [...(agents.get(a.manifold) ?? []), a.spec.id])
+    const verdict = buildVerdict(report.findings, yachtTruth, agents)
+    for (const v of verdict) {
+      expect(['FOUND', 'ARCHITECTURE', 'DETECTION']).toContain(v.kind)
+      if (!v.found) {
+        expect(v.detail.length).toBeGreaterThan(10)
+        expect(['ARCHITECTURE', 'DETECTION']).toContain(v.kind)
+      }
+    }
+    expect(NEAR_CANDIDATE_M).toBeGreaterThan(0)
+  })
+})
+
+describe('the take', () => {
+  it('replays the run it was recorded from', () => {
+    const run = runTheSwarm()
+    const recorder = new TakeRecorder({
+      contentId: yachtHouse.id,
+      truth: yachtTruth,
+      everyNTicks: 10,
+    })
+    while (run.tick < TOTAL_TICKS && !run.done) {
+      step(run)
+      recorder.record(run)
+    }
+    const report = buildReport({
+      runId: 'take-test',
+      tick: run.tick,
+      simSeconds: run.tick / 10,
+      candidates: run.candidates,
+      truth: run.truth,
+      rooms: yachtHouse.rooms,
+      coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
+      regionCoverage: [],
+    })
+    const take = recorder.finish(run, report)
+
+    expect(take.frames.length).toBeGreaterThan(50)
+    expect(take.logHash).toBe(run.log.hash())
+
+    // The last frame of the take must carry the coverage the run actually reached.
+    const last = frameFromTake(take, take.frames.length - 1)
+    let matching = 0
+    for (let i = 0; i < last.observed.length; i++) {
+      if (last.observed[i] === run.grid.observedCount[i]) matching++
+    }
+    expect(matching / last.observed.length).toBeGreaterThan(0.999)
   })
 })

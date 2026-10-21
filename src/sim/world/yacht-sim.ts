@@ -32,6 +32,8 @@
 
 import { loadHouse } from './content.ts'
 import { loadAnomalySet } from './anomalies.ts'
+import { buildHullForm } from './yacht-form.ts'
+import type { HullForm, Principal } from './yacht-form.ts'
 import yachtJson from '../../content/yacht-sim-01.json'
 import yachtAnomalies from '../../content/yacht-sim-anomalies-01.json'
 
@@ -40,6 +42,33 @@ export const yachtHouse = loadHouse(yachtJson as unknown)
 
 /** The oracle for the vessel. */
 export const yachtTruth = loadAnomalySet(yachtAnomalies as unknown)
+
+/**
+ * The published principal characteristics.
+ *
+ * `loadHouse` does not keep them — the engine has no use for a boat's length — so
+ * they are read straight off the content file for the renderer and the panel.
+ */
+export const yachtPrincipal = (
+  yachtJson as unknown as { principal: Principal }
+).principal
+
+/**
+ * The hull's shape, derived from the same content file the simulator read.
+ *
+ * The form is a *rendering* concern — the simulation needs the occupancy grid, not
+ * a waterline — so it is computed here from the published profiles and handed to
+ * the viewer, which is the same arrangement as the crawler's pose being projected
+ * at the frame boundary.
+ */
+export const yachtForm: HullForm = buildHullForm(
+  yachtPrincipal,
+  (yachtJson as unknown as { profiles: Parameters<typeof buildHullForm>[1] }).profiles,
+)
+
+/** The assumptions the whole vessel rests on. Printed in the panel. */
+export const yachtAssumptions: readonly string[] =
+  (yachtJson as unknown as { _assumptions?: string[] })._assumptions ?? []
 
 /** Where the ground bot starts: the engine room sole, forward of the machinery. */
 export const YACHT_SPAWN = { x: -3.4, z: 0.0, theta: 0.0 }

@@ -102,6 +102,20 @@ export type Room = {
 }
 
 /**
+ * A named enclosed space in the volumetric manifold.
+ *
+ * The counterpart of a `Room`, one manifold up. The house has none worth naming —
+ * its space above the ceiling is one attic — but a vessel has two enclosed
+ * volumes above the working deck, and one of them is the largest space on the
+ * vessel and the one a robot cannot enter.
+ */
+export type Volume = {
+  readonly id: string
+  readonly name: string
+  readonly aabb: Aabb
+}
+
+/**
  * A typed connector between manifolds. Spec §2.4 — manifolds touch only at
  * ports, and this is the structural rule that makes handoff and recombination
  * expressible at all.
