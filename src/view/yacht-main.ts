@@ -392,7 +392,7 @@ side.innerHTML = `
   <table>
     ${row('Deck hatch clear width', '200 mm')}
     ${row('Ground bot', `340 mm across (r = ${GROUND_BOT.radius} m)`)}
-    ${row('Hover bot', `240 mm across (r = ${HOVER.radius} m), and needs ${HOVER_CLEARANCE_M} m of ceiling`)}
+    ${row('Hover bot', `240 mm across (r = ${HOVER.radius} m); needs 0.40 m of passage and ${HOVER_CLEARANCE_M} m of ceiling`)}
     ${row('Inchworm', `80 mm, but confined to conduits`)}
     ${row('A person', '1.8 m. An arm and a torch go through 200 mm; a body does not.')}
   </table>

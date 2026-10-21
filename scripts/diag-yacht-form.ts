@@ -13,7 +13,7 @@
  *
  *   deck hatch clear width        200 mm
  *   ground bot across             340 mm   (radius 0.17 m)
- *   hover bot rotor span          240 mm, and it needs 400 mm of clearance
+ *   hover bot rotor span          240 mm, needing 400 mm of passage and a metre of ceiling
  *   inchworm                      80 mm, but confined to conduits
  *   a person's arm                 goes through a 200 mm hatch; a body does not
  *
@@ -32,7 +32,7 @@ import {
 } from '../src/sim/world/yacht-sim.ts'
 import { hullBottomY, stationAt } from '../src/sim/world/yacht-form.ts'
 import { GROUND_BOT } from '../src/sim/sim/agents.ts'
-import { HOVER, INCHWORM } from '../src/sim/types.ts'
+import { HOVER, HOVER_CLEARANCE_M, INCHWORM } from '../src/sim/types.ts'
 
 const CUT_Z = 0.65
 const COLS = 132
@@ -126,7 +126,7 @@ console.log(`  ground bot across              ${Math.round(GROUND_BOT.radius * 2
 const hoverClearanceM = Math.ceil(HOVER.radius / 0.1) * 2 * 0.1
 console.log(
   `  hover bot rotor span           ${Math.round(HOVER.radius * 2000)} mm, ` +
-    `needs ${hoverClearanceM.toFixed(2)} m of clearance`,
+    `needs ${hoverClearanceM.toFixed(2)} m of passage and ${HOVER_CLEARANCE_M.toFixed(2)} m of ceiling`,
 )
 console.log(`  inchworm                       ${Math.round(INCHWORM.radius * 2000)} mm, but confined to conduits`)
 console.log(`  a person                       goes through a ${clearMm} mm hatch; a body does not`)
