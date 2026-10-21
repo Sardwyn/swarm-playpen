@@ -214,12 +214,27 @@ describe('the swarm on the boat', () => {
 
 describe('the take', () => {
   it('replays the run it was recorded from', () => {
-    const run = runTheSwarm()
+    // The recorder has to be attached *before* the run, because a frame cannot be
+    // reconstructed after the fact: the ground grid and the rasters have moved on.
+    // The first version of this test ran the swarm to completion and then attached
+    // the recorder, which recorded exactly one frame and failed.
     const recorder = new TakeRecorder({
       contentId: yachtHouse.id,
       truth: yachtTruth,
       everyNTicks: 10,
     })
+    const run = createRun(
+      yachtHouse,
+      defaultConfig({
+        seed: 1,
+        noiseMultiplier: 1,
+        missionSeconds: 300,
+        agents: [GROUND_BOT, INCHWORM, HOVER],
+        inchwormHomePort: YACHT_INCHWORM_HOME,
+      }),
+      YACHT_SPAWN,
+      yachtTruth,
+    )
     while (run.tick < TOTAL_TICKS && !run.done) {
       step(run)
       recorder.record(run)
@@ -246,5 +261,20 @@ describe('the take', () => {
       if (last.observed[i] === run.grid.observedCount[i]) matching++
     }
     expect(matching / last.observed.length).toBeGreaterThan(0.999)
+
+    // And an early frame must not carry the final coverage: a take that only ever
+    // showed the end state would be a picture of a run that never happened.
+    //
+    // The property is *confidence*, not the number of cells touched. The depth
+    // sensor has a 3 m range, so the first frame already touches most of the
+    // engine room once; what accumulates afterwards is how many times each cell
+    // has been looked at. Spec §9.1: a cell glimpsed once does not count.
+    const first = frameFromTake(take, 0)
+    const countAtLeastTwice = (f: typeof first): number => {
+      let n = 0
+      for (let i = 0; i < f.observed.length; i++) if (f.observed[i]! >= 2) n++
+      return n
+    }
+    expect(countAtLeastTwice(first)).toBeLessThan(countAtLeastTwice(last))
   })
 })
