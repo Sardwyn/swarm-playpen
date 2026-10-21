@@ -26,7 +26,9 @@
     "diag:yacht-sim": "vite-node scripts/diag-yacht-sim.ts",
     "diag:match": "vite-node scripts/diag-match.ts",
     "diag:air": "vite-node scripts/diag-air.ts",
-    "diag:check": "vite-node scripts/diag-check.ts"
+    "diag:check": "vite-node scripts/diag-check.ts",
+    "diag:director": "vite-node scripts/diag-director.ts",
+    "diag:inch": "vite-node scripts/diag-inch.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
