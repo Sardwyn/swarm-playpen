@@ -630,7 +630,42 @@ Both are the reason to build the twin.
 
 ---
 
-## 15. Bugs this round, and what they are about
+## 15. The demo
+
+It is a command console, not a picture. Three machine cards with live telemetry,
+a mission panel, an event stream, the findings with their confidences, a plan
+view of the engine room with the machines on it, an activity timeline, and a
+caption under the viewport that says what is being shown and why.
+
+**The rule: a number on the screen is a number the run produced.** No severity —
+severity is a human judgement and this is a machine readout. The confidence on a
+finding is the detector's confidence; the clock is the simulated clock; the
+coverage is the coverage of the room and not of the boat.
+
+The camera is a list of seven shots, and a shot either holds a position or
+**locks onto a machine**: the target becomes the robot, the yaw becomes the
+robot's direction of travel, and the camera moves with it. That is how a 340 mm
+machine reads on a 17 m boat — not by making the machine bigger, but by putting
+the camera four metres away.
+
+Three things that were wrong and are now asserted rather than eyeballed
+(`test/view/yacht-director.test.ts`):
+
+| | |
+|---|---|
+| The camera jumped inside a shot | The playhead was an **integer frame index**, so the camera was asked for its position twenty times a second and held it for the other forty, and the robot it followed moved in the same twenty steps. The playhead is continuous now and the poses are interpolated between recorded frames. |
+| The camera swung with every turn | Its yaw was the robot's *heading*, and a coverage rover turns hard. It follows the direction of **travel** now, over a couple of seconds, and the yaw is rate-limited: a camera has inertia, and this one does too. |
+| The crawler was 300 m from itself | The frame projected the inchworm from its **seed** pose — an empty conduit id, because at the start it stands at a port — instead of the graph pose it actually holds. So it rendered at the origin, in the middle of the deck, while the demo had a shot framed on it inside a fuel line. |
+
+And the one that was hiding in plain sight: **the scene was allocating eight
+hundred canvases a second.** Every space label was redrawn, every finding was
+destroyed and rebuilt, every job ring was reconstructed — all of it, sixty times
+a second, to change nothing. A stutter that comes and goes with the picture is
+almost always this.
+
+---
+
+## 16. Bugs this round, and what they are about
 
 | | |
 |---|---|
@@ -672,7 +707,7 @@ the recall.
 
 ---
 
-## 16. Relationship to the other work
+## 17. Relationship to the other work
 
 The same instrument, three domains:
 
