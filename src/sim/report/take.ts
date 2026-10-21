@@ -401,7 +401,13 @@ export function frameAt(take: Take, indexFloat: number): SimFrame {
   const f = indexFloat - i
   const a = frameFromTake(take, i)
   if (j === i || f < 1e-6) return a
-  const b = frameFromTake(take, j)
+
+  // Only the AGENTS are interpolated, and they are read straight off the
+  // recorded frame. Rebuilding the whole second frame would mean replaying every
+  // coverage delta twice per displayed frame, and the coverage is the expensive
+  // part - it is a hundred and thirty kilobytes of grid that has to be
+  // reconstructed from the start of the take each time.
+  const b = take.frames[j]!
 
   const agents = a.agents.map((ag, k) => {
     const bg = b.agents[k]
