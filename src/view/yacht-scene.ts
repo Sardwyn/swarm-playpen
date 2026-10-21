@@ -1,39 +1,32 @@
 /**
- * The yacht scene, driven by simulation frames.
+ * The yacht scene.
  *
  * ## What this draws
  *
- * The boat, cut open, with the swarm's coverage drawn *into* it as light.
+ * The boat, cut open, with three machines working inside it.
  *
- * The hull is a ghost — a cage of lines rather than a solid — because the subject
- * is what is inside the boat and a solid hull hides exactly that. The light is the
- * subject: the coverage blooms behind the agents as they work, the engine room fills
- * up, and the forward stringer void stays black.
+ * The subject is not the boat — it is the swarm. The hull is a ghost cage
+ * because a solid hull hides exactly what the demo is about, and the light is
+ * the subject: the coverage blooms behind the robots as they work, the engine
+ * room fills up, and the forward stringer void stays black.
  *
- * ## The one image the whole project is for
+ * ## Why the robots are hard to see and what is done about it
  *
- * A person kneels on the deck with an arm through a 200 mm hole in it, reaching
- * down into the stringer void, because a 200 mm opening is a hand-hole and a
- * person can put a hand and a torch through one — and nothing in the swarm can
- * get its sensor within 340 mm of it.
+ * A ground robot is 340 mm across on a 17 m boat. At any distance that frames
+ * the boat, it is a speck. The three answers, and they are used together:
  *
- * The first version of this scene put a person *standing inside* the void. That
- * was impossible, and it was the visual form of a claim that was also
- * impossible. The reach is the picture that is true.
+ * 1. **The camera gets close.** The director has shots that lock onto each
+ *    robot from four metres, which is the only way a 340 mm machine reads.
+ * 2. **A lock-on reticle that scales with distance**, so the marker covers the
+ *    same fraction of the screen whether the robot is four metres away or
+ *    thirty. A marker of fixed world size is either invisible or enormous.
+ * 3. **A trail**, because where a machine has been is more legible than where
+ *    it is. The crawler's trail is the fuel line: the pipe is drawn by the
+ *    thing that went down it.
  *
- * ## What is on screen
- *
- * - the **coverage** as a bloom of light, one point per examined cell, brighter the
- *   more times it has been looked at
- * - the **volumetric coverage** — the hover bot's raster — as a second field
- * - the **spaces**: the engine room and the two volumes above it, with the one the
- *   swarm could not reach drawn dark and edged in red
- * - the **agents**, at true scale, each with a beacon and a sensing footprint
- * - the **findings**, each carrying its detector ID, and the **truth** overlay
- *
- * Nothing here is a measurement. The coverage comes from the frame. The reachability
- * comes from the frame. The geometry comes from the content, whose assumptions are
- * printed in the panel.
+ * The inchworm is 80 mm inside a 60 mm bore, and there is no camera position
+ * from which that is a visible object. Its shot is therefore shot *along* the
+ * bore, with the bore lit from the crawler, and the trail is the pipe.
  */
 
 import * as THREE from 'three'
@@ -52,7 +45,6 @@ const COLOURS = {
   coverageHot: 0xa8fff0,
   void: 0x63b3ed,
   voidUnreachable: 0xff5f56,
-  compartment: 0x3b5a7a,
   agentGround: 0x4fd1c5,
   agentCrawler: 0xffb454,
   agentHover: 0x68d391,
@@ -83,7 +75,11 @@ export type YachtSceneOptions = {
 
 export type YachtScene = {
   readonly group: THREE.Group
-  setFrame(frame: SimFrame): void
+  /** The camera, for the distance-scaled reticles. */
+  setCamera(camera: THREE.Camera): void
+  setFrame(frame: SimFrame, elapsed: number): void
+  /** Extend the trails to the agent positions in this frame. */
+  setTrailPoints(frame: SimFrame): void
   dispose: () => void
 }
 
@@ -118,9 +114,9 @@ function makeLabel(text: string, colour: number, scale = 1): THREE.Sprite {
       sizeAttenuation: false,
     }),
   )
-  // With size attenuation off, the scale is a fraction of the viewport height, so
-  // the label is the same size on screen wherever the camera is.
-  const h = 0.032 * scale
+  // With size attenuation off, the scale is a fraction of the viewport height,
+  // so the label is the same size on screen wherever the camera is.
+  const h = 0.028 * scale
   sprite.scale.set(h * (w / 48), h, 1)
   sprite.renderOrder = 14
   return sprite
@@ -173,15 +169,209 @@ function makeGlow(colour: number, size: number): THREE.Sprite {
   return sprite
 }
 
+// ---------------------------------------------------------------- the trail
+
+/**
+ * A ribbon of where a machine has been.
+ *
+ * A `THREE.Line` would be one pixel wide, and a one-pixel line on a 17 m boat
+ * is invisible. So the trail is a triangle strip: two vertices per point,
+ * offset along the normal, which is a few lines of bookkeeping and the
+ * difference between a line and a road.
+ */
+class Trail {
+  private readonly positions: Float32Array
+  private readonly colours: Float32Array
+  private readonly geometry = new THREE.BufferGeometry()
+  private readonly mesh: THREE.Mesh
+  private count = 0
+  private last = { x: Number.NaN, y: 0, z: 0 }
+
+  constructor(
+    private readonly colour: number,
+    private readonly width: number,
+    private readonly maxPoints: number,
+  ) {
+    this.positions = new Float32Array(maxPoints * 2 * 3)
+    this.colours = new Float32Array(maxPoints * 2 * 3)
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3))
+    this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colours, 3))
+    const indices: number[] = []
+    for (let i = 0; i < maxPoints - 1; i++) {
+      const a = i * 2
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+    this.geometry.setIndex(indices)
+    this.geometry.setDrawRange(0, 0)
+    this.mesh = new THREE.Mesh(
+      this.geometry,
+      new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    )
+    this.mesh.frustumCulled = false
+    this.mesh.renderOrder = 8
+  }
+
+  get object(): THREE.Mesh {
+    return this.mesh
+  }
+
+  /** Add a point, if it is far enough from the last one to be worth a segment. */
+  push(x: number, y: number, z: number, minStep = 0.12): void {
+    if (this.count >= this.maxPoints) return
+    if (!Number.isNaN(this.last.x)) {
+      const d = Math.hypot(x - this.last.x, z - this.last.z)
+      if (d < minStep) return
+    }
+    this.last = { x, y, z }
+
+    // The direction of the new segment, and the normal to it in the ground
+    // plane. The normal is what makes the ribbon a ribbon.
+    let dx = x - this.last.x
+    let dz = z - this.last.z
+    const len = Math.hypot(dx, dz)
+    if (!Number.isFinite(len) || len < 1e-6) {
+      dx = 1
+      dz = 0
+    } else {
+      dx /= len
+      dz /= len
+    }
+    const nx = -dz * this.width
+    const nz = dx * this.width
+
+    const i = this.count * 6
+    this.positions[i] = x + nx
+    this.positions[i + 1] = y
+    this.positions[i + 2] = z + nz
+    this.positions[i + 3] = x - nx
+    this.positions[i + 4] = y
+    this.positions[i + 5] = z - nz
+
+    // The head of the trail is bright and the tail is dim, so the direction of
+    // travel reads without an arrow.
+    const c = new THREE.Color(this.colour)
+    const head = this.count / Math.max(1, this.maxPoints)
+    const k = 0.25 + head * 1.1
+    this.colours[i] = c.r * k
+    this.colours[i + 1] = c.g * k
+    this.colours[i + 2] = c.b * k
+    this.colours[i + 3] = c.r * k
+    this.colours[i + 4] = c.g * k
+    this.colours[i + 5] = c.b * k
+
+    this.count++
+    this.geometry.setDrawRange(0, Math.max(0, (this.count - 1) * 6))
+    this.geometry.getAttribute('position').needsUpdate = true
+    this.geometry.getAttribute('color').needsUpdate = true
+  }
+}
+
+/** A ring that expands and fades: a ping, emitted on a cadence. */
+class Ping {
+  readonly mesh: THREE.Mesh
+  private age = 0
+  private readonly life: number
+
+  constructor(colour: number, life: number) {
+    this.life = life
+    this.mesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: colour,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.mesh.renderOrder = 9
+  }
+
+  fire(x: number, y: number, z: number, radius: number): void {
+    this.age = 0
+    this.mesh.position.set(x, y, z)
+    this.mesh.scale.setScalar(radius)
+    this.mesh.visible = true
+  }
+
+  update(dt: number): void {
+    if (!this.mesh.visible) return
+    this.age += dt
+    const t = this.age / this.life
+    if (t >= 1) {
+      this.mesh.visible = false
+      return
+    }
+    const s = this.mesh.scale.x
+    this.mesh.scale.setScalar(s * (1 + dt * 2.4))
+    const material = this.mesh.material as THREE.MeshBasicMaterial
+    material.opacity = 0.5 * (1 - t) * (1 - t)
+  }
+}
+
 // ---------------------------------------------------------------- the human
 
 /**
- * A human figure, for scale.
+ * A person kneeling on the deck, reaching down through a 200 mm hatch.
  *
- * Built from capsules, and deliberately not a character: it is a ruler. Its whole
- * job is to make the aperture arithmetic visible — a person is 1.8 m tall and the
- * ground bot is 340 mm across.
+ * This is the picture the whole project is for, and it is a picture of a
+ * *reach*, not of an entry. A 200 mm clear opening is a hand-hole: an arm and
+ * a torch go through it, a body does not. The earlier version of this scene put
+ * a person standing inside the void, which was impossible and was the visual
+ * statement of a claim that was also impossible.
  */
+function makeReachingPerson(colour: number): THREE.Group {
+  const g = new THREE.Group()
+  const material = new THREE.MeshBasicMaterial({
+    color: colour,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+  })
+
+  const limb = (
+    a: readonly [number, number, number],
+    b: readonly [number, number, number],
+    radius: number,
+  ): THREE.Mesh => {
+    const from = new THREE.Vector3(...a)
+    const to = new THREE.Vector3(...b)
+    const mid = from.clone().add(to).multiplyScalar(0.5)
+    const mesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius, from.distanceTo(to), 3, 8),
+      material,
+    )
+    mesh.position.copy(mid)
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      to.clone().sub(from).normalize(),
+    )
+    return mesh
+  }
+
+  g.add(limb([0.62, 0.06, 0.1], [0.22, 0.06, 0.1], 0.075))
+  g.add(limb([0.62, 0.06, -0.1], [0.22, 0.06, -0.1], 0.075))
+  g.add(limb([0.62, 0.06, 0.1], [0.6, 0.46, 0.1], 0.08))
+  g.add(limb([0.62, 0.06, -0.1], [0.6, 0.46, -0.1], 0.08))
+  g.add(limb([0.6, 0.46, 0], [0.2, 0.62, 0], 0.15))
+  g.add(limb([0.22, 0.62, 0.11], [0.14, 0.2, 0.08], 0.06))
+  g.add(limb([0.22, 0.62, -0.11], [0.0, 0.04, -0.03], 0.06))
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), material)
+  head.position.set(0.12, 0.76, 0)
+  g.add(head)
+
+  return g
+}
+
 function makeHuman(heightM: number, colour: number): THREE.Group {
   const g = new THREE.Group()
   const material = new THREE.MeshBasicMaterial({
@@ -211,66 +401,6 @@ function makeHuman(heightM: number, colour: number): THREE.Group {
   return g
 }
 
-/**
- * A person kneeling on the deck, reaching down through a 200 mm hatch.
- *
- * This is the picture the whole project is for, and it is a picture of a
- * *reach*, not of an entry. A 200 mm clear opening is a hand-hole: an arm and a
- * torch go through it, a body does not. The earlier version of this scene put a
- * person standing inside the void, which was impossible and was the visual
- * statement of a claim that was also impossible.
- *
- * So the figure kneels on the deck with one arm through the hole, and what it
- * says is: this is what a surveyor does, and no robot in the swarm can put its
- * sensor within 340 mm of doing it.
- */
-function makeReachingPerson(colour: number): THREE.Group {
-  const g = new THREE.Group()
-  const material = new THREE.MeshBasicMaterial({
-    color: colour,
-    transparent: true,
-    opacity: 0.24,
-    depthWrite: false,
-  })
-
-  /** A capsule laid between two points, which is how a limb is described. */
-  const limb = (
-    a: readonly [number, number, number],
-    b: readonly [number, number, number],
-    radius: number,
-  ): THREE.Mesh => {
-    const from = new THREE.Vector3(...a)
-    const to = new THREE.Vector3(...b)
-    const mid = from.clone().add(to).multiplyScalar(0.5)
-    const mesh = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius, from.distanceTo(to), 3, 8),
-      material,
-    )
-    mesh.position.copy(mid)
-    mesh.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      to.clone().sub(from).normalize(),
-    )
-    return mesh
-  }
-
-  // Kneeling: shins along the deck, thighs upright, torso leaning forward over
-  // the hole, one arm down through it. The other arm braces on the deck.
-  g.add(limb([0.62, 0.06, 0.1], [0.22, 0.06, 0.1], 0.075)) // shin
-  g.add(limb([0.62, 0.06, -0.1], [0.22, 0.06, -0.1], 0.075)) // shin
-  g.add(limb([0.62, 0.06, 0.1], [0.6, 0.46, 0.1], 0.08)) // thigh
-  g.add(limb([0.62, 0.06, -0.1], [0.6, 0.46, -0.1], 0.08)) // thigh
-  g.add(limb([0.6, 0.46, 0], [0.2, 0.62, 0], 0.15)) // torso, leaning forward
-  g.add(limb([0.22, 0.62, 0.11], [0.14, 0.2, 0.08], 0.06)) // arm, bracing
-  g.add(limb([0.22, 0.62, -0.11], [0.0, 0.04, -0.03], 0.06)) // arm, through the hole
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), material)
-  head.position.set(0.12, 0.76, 0)
-  g.add(head)
-
-  return g
-}
-
 // ------------------------------------------------------------ space geometry
 
 /**
@@ -278,8 +408,7 @@ function makeReachingPerson(colour: number): THREE.Group {
  *
  * For a **void** the floor follows the hull, because the void's floor *is* the
  * hull: the stringer void is the space between the stringers and the plating, so
- * its bottom rises with the forefoot. A flat box pokes out through the hull
- * forward of the deepest point, which reads as a box lying outside the boat.
+ * its bottom rises with the forefoot.
  */
 function buildSpaceGeometry(def: SpaceDef, form: HullForm, cutZ: number): THREE.BufferGeometry {
   const { minX, maxX, minY, maxY, minZ, maxZ } = def.aabb
@@ -324,6 +453,8 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   }
   const dot = makeDotTexture()
   disposables.push(dot)
+
+  let camera: THREE.Camera | null = null
 
   // ------------------------------------------------------------------ the hull
   const hull = buildHullGeometry(form, cutZ)
@@ -370,8 +501,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     ),
   )
 
-  // -------------------------------------------------------------- the sea
-  // A plane at the waterline, so the boat is in a place rather than in a void.
+  // ----------------------------------------------------------------- the sea
   const sea = new THREE.Mesh(
     track(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2)),
     new THREE.MeshBasicMaterial({
@@ -418,10 +548,54 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     spaceVisuals.set(s.id, { mesh, edges, label, def: s })
   }
 
+  // ----------------------------------------------------------------- the deck
+  const DECK_Y0 = 1.36
+  const DECK_Y1 = 1.46
+  const hatchXs = [2.8, 3.2, 5.7, 6.1] as const
+  const slotZ0 = 0.55
+  const slotZ1 = 0.75
+  const deckMinX = 1.2
+  const deckMaxX = 6.5
+  const deckHalfZ = 2.465
+
+  const deckMaterial = new THREE.MeshBasicMaterial({
+    color: 0x4a5a6b,
+    transparent: true,
+    opacity: 0.09,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+  const deckPanel = (
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+  ): void => {
+    const geometry = track(new THREE.BoxGeometry(maxX - minX, DECK_Y1 - DECK_Y0, maxZ - minZ))
+    geometry.translate((minX + maxX) / 2, (DECK_Y0 + DECK_Y1) / 2, (minZ + maxZ) / 2)
+    group.add(new THREE.Mesh(geometry, deckMaterial))
+  }
+  deckPanel(deckMinX, deckMaxX, -deckHalfZ, slotZ0)
+  deckPanel(deckMinX, deckMaxX, slotZ1, deckHalfZ)
+  deckPanel(deckMinX, hatchXs[0], slotZ0, slotZ1)
+  deckPanel(hatchXs[1], hatchXs[2], slotZ0, slotZ1)
+  deckPanel(hatchXs[3], deckMaxX, slotZ0, slotZ1)
+
+  for (const hx of [3.0, 5.9]) {
+    const hole = new THREE.Mesh(
+      track(new THREE.BoxGeometry(0.4, DECK_Y1 - DECK_Y0, slotZ1 - slotZ0)),
+      new THREE.MeshBasicMaterial({
+        color: COLOURS.voidUnreachable,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+      }),
+    )
+    hole.position.set(hx, (DECK_Y0 + DECK_Y1) / 2, (slotZ0 + slotZ1) / 2)
+    group.add(hole)
+  }
+
   // ------------------------------------------------------------- the coverage
-  // A field of light, not a lattice: one point per examined cell, brighter the more
-  // times it has been looked at. Additive blending, so unexamined space is simply
-  // not there, which is the honest rendering of "not examined".
   const MAX_POINTS = 60000
   const coverageGeometry = track(new THREE.BufferGeometry())
   const coveragePositions = new Float32Array(MAX_POINTS * 3)
@@ -447,7 +621,6 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   coveragePoints.renderOrder = 6
   group.add(coveragePoints)
 
-  // The volumetric coverage: the hover bot's raster, at the deckhead height.
   const volumetricGeometry = track(new THREE.BufferGeometry())
   const volumetricPositions = new Float32Array(8000 * 3)
   const volumetricColours = new Float32Array(8000 * 3)
@@ -473,54 +646,108 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   group.add(volumetricPoints)
 
   // ---------------------------------------------------------------- the agents
-  const agentVisuals = new Map<
-    string,
-    { body: THREE.Group; beacon: THREE.Sprite; label: THREE.Sprite; fov: THREE.Mesh | null }
-  >()
+  type AgentVisual = {
+    readonly cls: string
+    readonly body: THREE.Group
+    readonly beacon: THREE.Sprite
+    readonly label: THREE.Sprite
+    readonly reticle: THREE.Group
+    readonly cone: THREE.Mesh | null
+    readonly rotor: THREE.Object3D | null
+    readonly trail: Trail
+    readonly pings: Ping[]
+    pingClock: number
+    lastX: number
+    lastY: number
+    lastZ: number
+  }
+  const agentVisuals = new Map<string, AgentVisual>()
 
+  // -- ground-01: a 340 mm rover with a spinning lidar puck and a light fan.
   const groundBody = new THREE.Group()
-  const gBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.34, 0.1, 0.3),
+  const chassis = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.09, 0.3),
+    new THREE.MeshBasicMaterial({ color: 0x16323a }),
+  )
+  chassis.position.y = 0.055
+  groundBody.add(chassis)
+  const beaconPost = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.05, 0.05),
     new THREE.MeshBasicMaterial({ color: COLOURS.agentGround }),
   )
-  gBody.position.y = 0.05
-  groundBody.add(gBody)
-  const gTop = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, 0.03, 0.18),
-    new THREE.MeshBasicMaterial({ color: 0x07090c }),
+  beaconPost.position.y = 0.125
+  groundBody.add(beaconPost)
+  for (const [dx, dz] of [
+    [-0.14, -0.12],
+    [0.14, -0.12],
+    [-0.14, 0.12],
+    [0.14, 0.12],
+  ] as const) {
+    const wheel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10).rotateZ(Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x0a0f14 }),
+    )
+    wheel.position.set(dx, 0.045, dz)
+    groundBody.add(wheel)
+  }
+  const lidar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 0.03, 12),
+    new THREE.MeshBasicMaterial({ color: 0xa8fff0 }),
   )
-  gTop.position.y = 0.115
-  groundBody.add(gTop)
+  lidar.position.y = 0.17
+  groundBody.add(lidar)
 
-  const crawlerBody = new THREE.Group()
-  crawlerBody.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(0.055, 12, 8),
-      new THREE.MeshBasicMaterial({ color: COLOURS.agentCrawler }),
-    ),
-  )
-
+  // -- hover-01: a 240 mm quad with four rotors and a downward light cone.
   const hoverBody = new THREE.Group()
   hoverBody.add(
     new THREE.Mesh(
-      new THREE.CylinderGeometry(0.13, 0.13, 0.05, 16),
-      new THREE.MeshBasicMaterial({ color: COLOURS.agentHover }),
+      new THREE.CylinderGeometry(0.1, 0.1, 0.045, 16),
+      new THREE.MeshBasicMaterial({ color: 0x1c3b2a }),
     ),
   )
+  const rotor = new THREE.Group()
   for (const [dx, dz] of [
-    [0.13, 0.13],
-    [-0.13, 0.13],
-    [0.13, -0.13],
-    [-0.13, -0.13],
+    [0.1, 0.1],
+    [-0.1, 0.1],
+    [0.1, -0.1],
+    [-0.1, -0.1],
   ] as const) {
-    const rotor = new THREE.Mesh(
-      new THREE.TorusGeometry(0.07, 0.012, 6, 16),
-      new THREE.MeshBasicMaterial({ color: COLOURS.agentHover, transparent: true, opacity: 0.85 }),
+    const arm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.012, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0x2c5540 }),
     )
-    rotor.rotation.x = Math.PI / 2
-    rotor.position.set(dx, 0, dz)
-    hoverBody.add(rotor)
+    arm.position.set(dx / 2, 0, dz / 2)
+    arm.rotation.y = Math.atan2(dz, dx)
+    rotor.add(arm)
+    const disc = new THREE.Mesh(
+      new THREE.TorusGeometry(0.05, 0.008, 6, 14).rotateX(Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: COLOURS.agentHover,
+        transparent: true,
+        opacity: 0.9,
+      }),
+    )
+    disc.position.set(dx, 0.01, dz)
+    rotor.add(disc)
   }
+  rotor.position.y = 0.02
+  hoverBody.add(rotor)
+
+  // -- inch-01: an 80 mm crawler. It lives inside a 60 mm bore, so what the
+  //    viewer sees is its light, not its body.
+  const crawlerBody = new THREE.Group()
+  crawlerBody.add(
+    new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.035, 0.06, 4, 10).rotateZ(Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: COLOURS.agentCrawler }),
+    ),
+  )
+  crawlerBody.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.022, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfff2d0 }),
+    ),
+  )
 
   const bodies: Record<string, THREE.Group> = {
     ground: groundBody,
@@ -532,94 +759,128 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     inchworm: 'inch-01',
     hover: 'hover-01',
   }
+  const colours: Record<string, number> = {
+    ground: COLOURS.agentGround,
+    inchworm: COLOURS.agentCrawler,
+    hover: COLOURS.agentHover,
+  }
 
   for (const [cls, body] of Object.entries(bodies)) {
     group.add(body)
-    const beacon = makeGlow(cls === 'ground' ? COLOURS.agentGround : cls === 'inchworm' ? COLOURS.agentCrawler : COLOURS.agentHover, 1.1)
+    const beacon = makeGlow(colours[cls] ?? 0xffffff, 1.0)
     group.add(beacon)
-    const label = makeLabel(names[cls] ?? cls, 0xffffff, 0.4)
+    const label = makeLabel(names[cls] ?? cls, colours[cls] ?? 0xffffff, 0.4)
     group.add(label)
-    // The sensing footprint, so the coverage has a visible cause.
-    let fov: THREE.Mesh | null = null
-    if (cls !== 'hover') {
-      const r = cls === 'ground' ? 3.0 : 0.4
-      fov = new THREE.Mesh(
-        new THREE.CircleGeometry(r, 48).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({
-          color: cls === 'ground' ? COLOURS.agentGround : COLOURS.agentCrawler,
-          transparent: true,
-          opacity: 0.028,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        }),
-      )
-      group.add(fov)
-    }
-    agentVisuals.set(cls, { body, beacon, label, fov })
-  }
 
-  // ----------------------------------------------------------------- the deck
-  // The deck over the stringer void, with the two 200 mm holes in it.
-  //
-  // Without the deck the void reads as an open-topped box and the aperture
-  // arithmetic is invisible. With it, the picture is the argument: a plate of
-  // GRP with two 200 mm slots in it, and everything the swarm can do happening
-  // a long way from both.
-  const DECK_Y0 = 1.36
-  const DECK_Y1 = 1.46
-  const hatchXs = [2.8, 3.2, 5.7, 6.1] as const
-  const slotZ0 = 0.55
-  const slotZ1 = 0.75
-  const deckMinX = 1.2
-  const deckMaxX = 6.5
-  const deckHalfZ = 2.465
-
-  const deckMaterial = new THREE.MeshBasicMaterial({
-    color: 0x4a5a6b,
-    transparent: true,
-    opacity: 0.07,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  })
-  const deckPanel = (
-    minX: number,
-    maxX: number,
-    minZ: number,
-    maxZ: number,
-  ): void => {
-    const geometry = track(new THREE.BoxGeometry(maxX - minX, DECK_Y1 - DECK_Y0, maxZ - minZ))
-    geometry.translate((minX + maxX) / 2, (DECK_Y0 + DECK_Y1) / 2, (minZ + maxZ) / 2)
-    group.add(new THREE.Mesh(geometry, deckMaterial))
-  }
-  // The two side panels run the whole length; the centre strip is decked except
-  // where the two holes are.
-  deckPanel(deckMinX, deckMaxX, -deckHalfZ, slotZ0)
-  deckPanel(deckMinX, deckMaxX, slotZ1, deckHalfZ)
-  deckPanel(deckMinX, hatchXs[0], slotZ0, slotZ1)
-  deckPanel(hatchXs[1], hatchXs[2], slotZ0, slotZ1)
-  deckPanel(hatchXs[3], deckMaxX, slotZ0, slotZ1)
-
-  // The holes themselves, picked out in red: 200 mm of clear width, which is the
-  // number the whole product turns on.
-  for (const hx of [3.0, 5.9]) {
-    const hole = new THREE.Mesh(
-      track(new THREE.BoxGeometry(0.4, DECK_Y1 - DECK_Y0, slotZ1 - slotZ0)),
+    // The lock-on reticle: a ring and four ticks, scaled with distance so it
+    // covers the same fraction of the screen wherever the robot is.
+    const reticle = new THREE.Group()
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.94, 1, 32),
       new THREE.MeshBasicMaterial({
-        color: COLOURS.voidUnreachable,
+        color: colours[cls] ?? 0xffffff,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.85,
+        depthTest: false,
         depthWrite: false,
+        side: THREE.DoubleSide,
       }),
     )
-    hole.position.set(hx, (DECK_Y0 + DECK_Y1) / 2, (slotZ0 + slotZ1) / 2)
-    group.add(hole)
+    reticle.add(ring)
+    for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const tick = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.34, 0.05),
+        new THREE.MeshBasicMaterial({
+          color: colours[cls] ?? 0xffffff,
+          transparent: true,
+          opacity: 0.9,
+          depthTest: false,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      )
+      tick.position.set(Math.cos(a) * 1.18, 0, Math.sin(a) * 1.18)
+      tick.rotation.y = -a
+      reticle.add(tick)
+    }
+    reticle.renderOrder = 12
+    group.add(reticle)
+
+    // The sensing cone. The rover's depth fan spreads on the sole; the hover's
+    // light comes straight down.
+    let cone: THREE.Mesh | null = null
+    if (cls === 'ground') {
+      cone = new THREE.Mesh(
+        new THREE.ConeGeometry(1.25, 1.25, 24, 1, true).rotateX(Math.PI),
+        new THREE.MeshBasicMaterial({
+          color: COLOURS.agentGround,
+          transparent: true,
+          opacity: 0.07,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        }),
+      )
+      cone.position.y = 0.62
+    } else if (cls === 'hover') {
+      cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.9, 1.1, 24, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: COLOURS.agentHover,
+          transparent: true,
+          opacity: 0.09,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        }),
+      )
+      cone.position.y = -0.55
+      cone.rotation.x = Math.PI
+    } else {
+      // The crawler's bore light: a short tube along its heading.
+      cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.055, 0.7, 12, 1, true).rotateZ(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({
+          color: COLOURS.agentCrawler,
+          transparent: true,
+          opacity: 0.22,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        }),
+      )
+      cone.position.x = 0.34
+    }
+    if (cone !== null) group.add(cone)
+
+    const trail = new Trail(colours[cls] ?? 0xffffff, cls === 'inchworm' ? 0.05 : 0.075, 900)
+    group.add(trail.object)
+
+    const pings: Ping[] = []
+    for (let i = 0; i < 3; i++) {
+      const ping = new Ping(colours[cls] ?? 0xffffff, 1.1)
+      group.add(ping.mesh)
+      pings.push(ping)
+    }
+
+    agentVisuals.set(cls, {
+      cls,
+      body,
+      beacon,
+      label,
+      reticle,
+      cone,
+      rotor: cls === 'hover' ? rotor : cls === 'ground' ? lidar : null,
+      trail,
+      pings,
+      pingClock: 0,
+      lastX: Number.NaN,
+      lastY: 0,
+      lastZ: 0,
+    })
   }
 
   // ----------------------------------------------------------------- the human
-  // A person kneeling on the deck over the forward hatch, with an arm through
-  // it. Not inside the void — nobody gets inside a 200 mm hole. The picture is
-  // of a reach, because a reach is what a person can do here and a robot
-  // cannot.
   const reaching = makeReachingPerson(COLOURS.human)
   reaching.position.set(3.0, DECK_Y1, cutZ)
   group.add(reaching)
@@ -631,7 +892,6 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   holeTag.position.set(3.0, DECK_Y1 + 0.35, cutZ)
   group.add(holeTag)
 
-  // And one standing in the engine room, so the 340 mm robot reads as small.
   const roomSpace = spaces.find((s) => s.kind === 'room')
   if (roomSpace !== undefined) {
     const human = makeHuman(1.8, COLOURS.human)
@@ -648,9 +908,9 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   const truthGroup = new THREE.Group()
   group.add(truthGroup)
 
-  const dummy = new THREE.Object3D()
   const base = new THREE.Color(COLOURS.coverage)
   const hot = new THREE.Color(COLOURS.coverageHot)
+  let findingIndex = 0
 
   function spaceExamined(frame: SimFrame, def: SpaceDef): boolean {
     if (def.kind === 'room') {
@@ -684,7 +944,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     return false
   }
 
-  function setFrame(frame: SimFrame): void {
+  function setFrame(frame: SimFrame, elapsed: number): void {
     // -- spaces: lit if examined, dark if not.
     for (const [, v] of spaceVisuals) {
       const examined = spaceExamined(frame, v.def)
@@ -696,7 +956,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       edgeMaterial.color.setHex(colour)
       edgeMaterial.opacity = examined ? 0.85 : 1
       const text = examined ? v.def.name : `${v.def.name} — UNREACHABLE`
-      const label = makeLabel(text, examined ? COLOURS.void : COLOURS.voidUnreachable, 0.46)
+      const label = makeLabel(text, examined ? COLOURS.void : COLOURS.voidUnreachable, 0.42)
       v.label.material.map?.dispose()
       v.label.material.map = label.material.map
       v.label.material.needsUpdate = true
@@ -724,7 +984,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     coverageGeometry.getAttribute('position').needsUpdate = true
     coverageGeometry.getAttribute('color').needsUpdate = true
 
-    // -- the volumetric field.
+    // -- the volumetric field, coloured by the thermal deviation.
     let m = 0
     for (const raster of frame.rasters) {
       for (let rz = 0; rz < raster.depth && m < 8000; rz++) {
@@ -734,8 +994,13 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
           volumetricPositions[m * 3] = raster.minX + (rx + 0.5) * raster.cellSizeM
           volumetricPositions[m * 3 + 1] = 1.2
           volumetricPositions[m * 3 + 2] = raster.minZ + (rz + 0.5) * raster.cellSizeM
-          const t = Math.min(1, (obs - 2) / 5)
-          const c = base.clone().lerp(hot, t).multiplyScalar(0.14 + t * 0.36)
+          const dev = raster.meanDeviationK[rz * raster.width + rx] ?? 0
+          const t = Math.min(1, Math.abs(dev) / 4)
+          const c =
+            dev >= 0
+              ? base.clone().lerp(new THREE.Color(0xffb454), t)
+              : base.clone().lerp(new THREE.Color(0x63b3ed), t)
+          c.multiplyScalar(0.14 + t * 0.4)
           volumetricColours[m * 3] = c.r
           volumetricColours[m * 3 + 1] = c.g
           volumetricColours[m * 3 + 2] = c.b
@@ -747,16 +1012,38 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     volumetricGeometry.getAttribute('position').needsUpdate = true
     volumetricGeometry.getAttribute('color').needsUpdate = true
 
-    // -- the agents, with their beacons and their sensing footprints.
+    // -- the agents.
     for (const a of frame.agents) {
       const v = agentVisuals.get(a.cls)
       if (v === undefined) continue
       v.body.position.set(a.x, a.y, a.z)
       v.body.rotation.y = -a.heading
-      v.beacon.position.set(a.x, a.y + 0.35, a.z)
-      v.label.position.set(a.x, a.y + 0.8, a.z)
-      if (v.fov !== null) {
-        v.fov.position.set(a.x, a.y + 0.02, a.z)
+      v.beacon.position.set(a.x, a.y + 0.3, a.z)
+      v.label.position.set(a.x, a.y + 0.75, a.z)
+      if (v.rotor !== null) v.rotor.rotation.y = elapsed * (v.cls === 'hover' ? 22 : 3.5)
+
+      // The reticle scales with distance, so it covers the same fraction of the
+      // screen at any range. A marker of fixed world size is either invisible
+      // at thirty metres or enormous at four.
+      if (camera !== null) {
+        const d = camera.position.distanceTo(v.body.position)
+        v.reticle.position.set(a.x, a.y + 0.02, a.z)
+        v.reticle.scale.setScalar(Math.max(0.12, d * 0.055))
+        v.reticle.visible = d > 0.8
+      }
+
+      if (v.cone !== null) {
+        v.cone.position.set(0, v.cls === 'hover' ? -0.55 : v.cls === 'ground' ? 0.62 : 0, 0)
+        v.cone.rotation.set(0, 0, 0)
+        if (v.cls === 'hover') {
+          v.cone.position.set(0, -0.55, 0)
+          v.cone.rotation.x = Math.PI
+        } else if (v.cls === 'ground') {
+          v.cone.position.set(0, 0.62, 0)
+        } else {
+          v.cone.position.set(0.34, 0, 0)
+          v.cone.rotation.set(0, 0, -Math.PI / 2)
+        }
       }
     }
 
@@ -765,7 +1052,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       findingGroup.remove(child)
       ;(child as THREE.Mesh).geometry?.dispose()
     }
-    let findingIndex = 0
+    findingIndex = 0
     for (const f of frame.findings) {
       const mesh = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.16, 0),
@@ -776,8 +1063,6 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       const glow = makeGlow(COLOURS.finding, 0.9)
       glow.position.set(f.x, 0.35, f.z)
       findingGroup.add(glow)
-      // Staggered, because four findings in one engine room on four labels at
-      // the same height is four labels on top of each other.
       const label = makeLabel(f.detectorId, COLOURS.finding, 0.3)
       label.position.set(f.x, 0.8 + (findingIndex % 4) * 0.42, f.z)
       findingGroup.add(label)
@@ -796,7 +1081,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       jobGroup.add(ring)
     }
 
-    // -- the truth overlay: the faults that were there, whether or not anyone saw.
+    // -- the truth overlay.
     for (const child of [...truthGroup.children]) truthGroup.remove(child)
     for (const t of frame.truth) {
       const mesh = new THREE.Mesh(
@@ -814,15 +1099,42 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       glow.position.set(t.x, t.y, t.z)
       truthGroup.add(glow)
     }
+
+    // -- the pings. Each agent pings on its own cadence, and the ring is the
+    //    only thing in the scene that says "this machine is alive right now".
+    for (const [, v] of agentVisuals) {
+      v.pingClock += 1 / 60
+      if (v.pingClock > 1.4) {
+        v.pingClock = 0
+        const ping = v.pings.find((p) => !p.mesh.visible)
+        if (ping !== undefined) {
+          const a = frame.agents.find((x) => x.cls === v.cls)
+          if (a !== undefined) ping.fire(a.x, a.y + 0.05, a.z, 0.3)
+        }
+      }
+      for (const p of v.pings) p.update(1 / 60)
+    }
+
   }
 
-  void dummy
-  void base
-  void hot
+  function setTrailPoints(frame: SimFrame): void {
+    for (const a of frame.agents) {
+      const v = agentVisuals.get(a.cls)
+      if (v === undefined) continue
+      v.trail.push(a.x, a.y + 0.03, a.z, a.cls === 'inchworm' ? 0.05 : 0.12)
+      v.lastX = a.x
+      v.lastY = a.y
+      v.lastZ = a.z
+    }
+  }
 
   return {
     group,
+    setCamera: (c: THREE.Camera) => {
+      camera = c
+    },
     setFrame,
+    setTrailPoints,
     dispose: () => {
       for (const d of disposables) d.dispose()
       group.traverse((o) => {

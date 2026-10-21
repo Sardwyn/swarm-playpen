@@ -1,17 +1,27 @@
 /**
- * Browser entry point for the yacht domain: run the swarm on the boat, record the
- * run, and play it back on a scripted camera.
+ * Browser entry point for the yacht domain: run the swarm on the boat, record
+ * the run, and play it back on a directed camera with a live console.
  *
- * ## The camera is a piece of the argument
+ * ## The three things this does
  *
- * A free orbit shows you the boat. The scripted sequence shows you the *problem*:
- * it starts outside in the dark, goes in to the engine room where the swarm is
- * working and the light is building, pulls forward along the hull to the stringer
- * void — which stays black the whole way — comes up onto the deck and looks down
- * through a 200 mm hole at a person kneeling there with an arm in it, and then
- * pulls back to the hero frame with the lit engine room behind the dark void.
+ * 1. **Runs it.** 3000 ticks of three agents, computed in chunks so the page
+ *    paints a progress bar rather than freezing.
+ * 2. **Records it.** Every three ticks, so the take has a thousand frames and
+ *    the playback has something to interpolate between.
+ * 3. **Plays it back on rails.** A camera director with shots that lock onto
+ *    each machine in turn, a console reading out the telemetry live, and a
+ *    playhead that moves **continuously** — because the camera used to be
+ *    driven by an integer frame index, and everything juddered at the record
+ *    rate.
  *
- * Any drag hands control back to the user; the button puts the camera back on rails.
+ * ## The readout does not depend on the picture
+ *
+ * The three-dimensional view is one view of the run. The readout is the run.
+ * So the console, the transport, the event stream and the report are built
+ * and driven whether or not the machine can give us a WebGL context, and the
+ * 3-D is the part that is allowed to fail. A viewer that cannot open a context
+ * still gets the telemetry, the findings and the coverage; it just does not
+ * get a picture of them.
  */
 
 import * as THREE from 'three'
@@ -22,7 +32,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 
 import { createRun, defaultConfig, step } from '../sim/sim/run.ts'
 import { buildReport } from '../sim/report/report.ts'
-import { TakeRecorder, frameFromTake, observedFraction, regionCoverage } from '../sim/report/take.ts'
+import { TakeRecorder, frameAt, regionCoverage } from '../sim/report/take.ts'
 import { buildVerdict } from '../sim/report/verdict.ts'
 import { GROUND_BOT } from '../sim/sim/agents.ts'
 import { HOVER, HOVER_CLEARANCE_M, INCHWORM } from '../sim/types.ts'
@@ -37,6 +47,8 @@ import {
 } from '../sim/world/yacht-sim.ts'
 import { buildYachtScene } from './yacht-scene.ts'
 import type { SpaceDef } from './yacht-scene.ts'
+import { buildConsole } from './yacht-console.ts'
+import { CameraDirector } from './yacht-director.ts'
 import { OrbitShim } from './viewer.ts'
 
 const CUT_Z = 0.65
@@ -44,8 +56,9 @@ const SEED = 1
 const NOISE = 1
 const MISSION_SECONDS = 300
 const TOTAL_TICKS = 3000
-const EVERY_N_TICKS = 10
-const FRAMES_PER_SECOND = 14
+const EVERY_N_TICKS = 3
+/** Wall-clock seconds for the whole run. The take has ~1000 frames in it. */
+const RUN_SECONDS = 34
 
 const stage = document.getElementById('stage')!
 const side = document.getElementById('side')!
@@ -54,9 +67,6 @@ const bootBar = document.getElementById('bootbar')!
 const bootNote = document.getElementById('bootnote')!
 
 // ------------------------------------------------------------------ the run
-// The simulation is 3000 ticks of three agents, and it is computed before anything
-// can be drawn. So it is computed in chunks, with a progress bar, rather than
-// freezing the page.
 const run = createRun(
   yachtHouse,
   defaultConfig({
@@ -89,15 +99,6 @@ async function compute(): Promise<void> {
   }
 }
 
-/**
- * The take, finished once the run is finished.
- *
- * Assigned late, and on purpose. `TakeRecorder.finish` hands back the live
- * frames array, so a take finished *before* the run still grew as the recorder
- * appended to it — which is why the scene looked right while the log hash was
- * the hash of an empty run and the panel reported no findings at all. A
- * half-live object is worse than a late one.
- */
 let take!: ReturnType<typeof recorder.finish>
 let finalReport!: ReturnType<typeof buildReport>
 
@@ -115,8 +116,6 @@ function finishTheRun(): void {
   take = recorder.finish(run, finalReport)
 }
 
-// The spaces: the ground-manifold rooms and the volumetric ones, from the same
-// content file the simulator read.
 const spaces: SpaceDef[] = [
   ...yachtHouse.rooms.map((r) => ({ id: r.id, name: r.name, aabb: r.aabb, kind: 'room' as const })),
   ...yachtHouse.voids.map((v) => ({ id: v.id, name: v.name, aabb: v.aabb, kind: 'void' as const })),
@@ -127,168 +126,149 @@ for (const a of run.agents) {
   manifoldAgents.set(a.manifold, [...(manifoldAgents.get(a.manifold) ?? []), `${a.spec.id} (${a.spec.cls})`])
 }
 
-// ------------------------------------------------------------------ renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-renderer.setSize(stage.clientWidth, stage.clientHeight)
-stage.appendChild(renderer.domElement)
+// ------------------------------------------------------------------ the view
+// Everything three-dimensional is optional. The readout is not.
+let renderer: THREE.WebGLRenderer | null = null
+let composer: EffectComposer | null = null
+let bloom: UnrealBloomPass | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let orbit: OrbitShim | null = null
+let yacht: ReturnType<typeof buildYachtScene> | null = null
 
-const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x07090c)
-scene.fog = new THREE.Fog(0x07090c, 55, 190)
-scene.add(new THREE.AmbientLight(0xffffff, 0.4))
-const key = new THREE.DirectionalLight(0xc9d1d9, 0.7)
-key.position.set(16, 22, 14)
-scene.add(key)
-const rim = new THREE.DirectionalLight(0x4fd1c5, 0.5)
-rim.position.set(-18, 8, -16)
-scene.add(rim)
-const engineLight = new THREE.PointLight(0xffb454, 3.4, 12, 2)
-engineLight.position.set(-5.4, 0.6, CUT_Z)
-scene.add(engineLight)
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  renderer.setSize(stage.clientWidth, stage.clientHeight)
+  stage.appendChild(renderer.domElement)
 
-const yacht = buildYachtScene({ form: yachtForm, spaces, cutZ: CUT_Z })
-scene.add(yacht.group)
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x07090c)
+  scene.fog = new THREE.Fog(0x07090c, 40, 150)
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35))
+  const key = new THREE.DirectionalLight(0xc9d1d9, 0.6)
+  key.position.set(16, 22, 14)
+  scene.add(key)
+  const rim = new THREE.DirectionalLight(0x4fd1c5, 0.6)
+  rim.position.set(-18, 8, -16)
+  scene.add(rim)
+  const engineLight = new THREE.PointLight(0xffb454, 3.2, 10, 2)
+  engineLight.position.set(-5.4, 0.6, CUT_Z)
+  scene.add(engineLight)
 
-const camera = new THREE.PerspectiveCamera(40, stage.clientWidth / stage.clientHeight, 0.05, 500)
-const orbit = new OrbitShim(camera, renderer.domElement)
-orbit.target.set(0, 1.5, 0)
-orbit.yaw = 1.15
-orbit.pitch = 0.2
-orbit.distance = 23
+  yacht = buildYachtScene({ form: yachtForm, spaces, cutZ: CUT_Z })
+  scene.add(yacht.group)
 
-// The composer. Bloom is what turns a field of points into light.
-const composer = new EffectComposer(renderer)
-composer.addPass(new RenderPass(scene, camera))
-const bloom = new UnrealBloomPass(
-  new THREE.Vector2(stage.clientWidth, stage.clientHeight),
-  0.55,
-  0.45,
-  0.32,
-)
-composer.addPass(bloom)
-composer.addPass(new OutputPass())
+  camera = new THREE.PerspectiveCamera(42, stage.clientWidth / stage.clientHeight, 0.03, 500)
+  orbit = new OrbitShim(camera, renderer.domElement)
+  orbit.target.set(0, 0.5, 0)
+  orbit.yaw = 1.25
+  orbit.pitch = 0.3
+  orbit.distance = 22
+  yacht.setCamera(camera)
 
-// ----------------------------------------------------------------- camera cut
-/**
- * The scripted camera.
- *
- * Six beats, and the third is the one that matters: the pull-forward along the
- * hull, where the lit engine room recedes and the stringer void does not light up.
- */
-type Beat = {
-  readonly t: number
-  readonly target: readonly [number, number, number]
-  readonly yaw: number
-  readonly pitch: number
-  readonly distance: number
-}
-
-const CUT: readonly Beat[] = [
-  // 0. Outside, high, the whole boat in the dark.
-  { t: 0.0, target: [0, 0.9, 0], yaw: 1.25, pitch: 0.34, distance: 21 },
-  // 1. Down and inboard, towards the engine room.
-  { t: 0.16, target: [-4.2, 0.3, 0], yaw: 1.05, pitch: 0.2, distance: 14 },
-  // 2. Inside the engine room, low, the light building.
-  { t: 0.34, target: [-6.0, 0.2, 0], yaw: 1.5, pitch: 0.14, distance: 9 },
-  // 3. Pull forward along the hull. The void does not light up.
-  { t: 0.54, target: [0.5, 0.4, 0], yaw: 1.35, pitch: 0.26, distance: 14 },
-  // 4. Up onto the deck, looking down through the 200 mm hole. The person is
-  //    kneeling there with an arm in it, and the fault is 760 mm below.
-  { t: 0.72, target: [2.7, 0.95, CUT_Z], yaw: 1.45, pitch: 0.58, distance: 8.5 },
-  // 5. The hero frame: lit engine room behind the dark void.
-  { t: 0.9, target: [0.4, 0.55, 0], yaw: 1.05, pitch: 0.34, distance: 16.5 },
-  { t: 1.0, target: [0, 0.9, 0], yaw: 1.25, pitch: 0.34, distance: 21 },
-]
-
-function cameraAt(t: number): void {
-  for (let i = 0; i < CUT.length - 1; i++) {
-    const a = CUT[i]!
-    const b = CUT[i + 1]!
-    if (t < a.t || t > b.t) continue
-    const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t)
-    // Smoothstep, so the move eases rather than snapping between keys.
-    const e = f * f * (3 - 2 * f)
-    orbit.target.set(
-      a.target[0] + (b.target[0] - a.target[0]) * e,
-      a.target[1] + (b.target[1] - a.target[1]) * e,
-      a.target[2] + (b.target[2] - a.target[2]) * e,
-    )
-    orbit.yaw = a.yaw + (b.yaw - a.yaw) * e
-    orbit.pitch = a.pitch + (b.pitch - a.pitch) * e
-    orbit.distance = a.distance + (b.distance - a.distance) * e
-    return
-  }
+  composer = new EffectComposer(renderer)
+  composer.addPass(new RenderPass(scene, camera))
+  bloom = new UnrealBloomPass(
+    new THREE.Vector2(stage.clientWidth, stage.clientHeight),
+    0.72,
+    0.5,
+    0.22,
+  )
+  composer.addPass(bloom)
+  composer.addPass(new OutputPass())
+} catch (err) {
+  // The console still runs. Say so, and carry on.
+  console.warn('3-D view unavailable:', err)
+  stage.innerHTML =
+    '<div id="nogpu"><b>3-D VIEW UNAVAILABLE</b><span>This machine would not give us a WebGL context. The readout is live and complete.</span></div>'
+  document.getElementById('console')!.classList.add('flat')
 }
 
 // ----------------------------------------------------------------- playback
-let frameIndex = 0
+let playhead = 0
 let playing = true
 let cinematic = true
+let speed = 1
 let lastTime = 0
+let lastFrameIndex = -1
+const director = new CameraDirector()
 
-const scrubber = document.getElementById('scrub') as HTMLInputElement | null
-const playButton = document.getElementById('play') as HTMLButtonElement | null
-const cutButton = document.getElementById('cut') as HTMLButtonElement | null
-const tickLabel = document.getElementById('tick') as HTMLElement | null
-const coverageLabel = document.getElementById('coverage') as HTMLElement | null
-const hudCoverage = document.getElementById('hud-coverage') as HTMLElement | null
-const hudFound = document.getElementById('hud-found') as HTMLElement | null
-const hudMiss = document.getElementById('hud-miss') as HTMLElement | null
-
-function showFrame(index: number): void {
-  frameIndex = Math.max(0, Math.min(take.frames.length - 1, index))
-  const frame = frameFromTake(take, frameIndex)
-  yacht.setFrame(frame)
-  if (scrubber !== null) scrubber.value = String(frameIndex)
-  if (tickLabel !== null) {
-    tickLabel.textContent = `tick ${frame.tick} / ${run.tick}`
-  }
-  const pct = observedFraction(take, frameIndex) * 100
-  if (coverageLabel !== null) coverageLabel.textContent = `boat coverage ${pct.toFixed(1)}%`
-  const roomPct = regionCoverage(take, frameIndex, yachtHouse.rooms[0]!.aabb) * 100
-  if (hudCoverage !== null) hudCoverage.textContent = `${roomPct.toFixed(1)}%`
-  updateVerdict(frame)
+const scrubber = document.getElementById('c-scrub') as HTMLInputElement | null
+const playButton = document.getElementById('c-play') as HTMLButtonElement | null
+const cutButton = document.getElementById('c-shot') as HTMLButtonElement | null
+const speedButton = document.getElementById('c-speed') as HTMLButtonElement | null
+const shotName = document.getElementById('c-shotname')
+const reportButton = document.getElementById('c-report') as HTMLButtonElement | null
+if (reportButton !== null) {
+  reportButton.addEventListener('click', () => {
+    side.classList.toggle('open')
+    reportButton.classList.toggle('on', side.classList.contains('open'))
+  })
 }
 
-const verdictList = document.getElementById('verdict')!
+// The screen-space lock-on tags. A marker in the world is either invisible or
+// enormous; a marker in screen space is always exactly as big as it should be.
+const tagLayer = document.getElementById('tags')!
+const tags = new Map<string, HTMLElement>()
+for (const id of ['ground-01', 'hover-01', 'inch-01']) {
+  const tag = document.createElement('div')
+  tag.className = 'lock'
+  tag.innerHTML = `<b>${id}</b><span></span>`
+  tagLayer.appendChild(tag)
+  tags.set(id, tag)
+}
 
-function updateVerdict(frame: ReturnType<typeof frameFromTake>): void {
-  const v = buildVerdict(frame.findings, yachtTruth, manifoldAgents)
-  const found = v.filter((x) => x.found).length
-  const arch = v.filter((x) => !x.found && x.kind === 'ARCHITECTURE').length
-  if (hudFound !== null) hudFound.textContent = `${found} / ${v.length}`
-  if (hudMiss !== null) hudMiss.textContent = String(arch)
-  verdictList.innerHTML = v
-    .map(
-      (x) =>
-        `<li class="${x.found ? 'ok' : x.kind === 'ARCHITECTURE' ? 'arch' : 'det'}">` +
-        `<span class="vid">${x.id}</span>` +
-        `<span class="vcls">${x.cls}</span>` +
-        `<span class="vkind">${x.kind}</span>` +
-        `</li>`,
-    )
-    .join('')
+const consoleRoot = document.getElementById('console')!
+const consoleUi = buildConsole(consoleRoot, yachtHouse)
+
+function showAt(index: number): void {
+  playhead = Math.max(0, Math.min(take.frames.length - 1, index))
+  const frame = frameAt(take, playhead)
+  if (yacht !== null) yacht.setFrame(frame, performance.now() / 1000)
+  const floor = Math.floor(playhead)
+  if (floor !== lastFrameIndex) {
+    lastFrameIndex = floor
+    if (yacht !== null) yacht.setTrailPoints(frame)
+  }
+  consoleUi.update(frame, take, floor, take.frames.length)
+  if (shotName !== null) shotName.textContent = director.shotAt(playhead / (take.frames.length - 1)).name
+  updateTags(frame)
+}
+
+const projected = new THREE.Vector3()
+function updateTags(frame: ReturnType<typeof frameAt>): void {
+  if (camera === null) return
+  for (const a of frame.agents) {
+    const tag = tags.get(a.id)
+    if (tag === undefined) continue
+    projected.set(a.x, a.y + 0.2, a.z).project(camera)
+    const behind = projected.z > 1
+    const x = (projected.x * 0.5 + 0.5) * stage.clientWidth
+    const y = (-projected.y * 0.5 + 0.5) * stage.clientHeight
+    tag.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
+    tag.style.display = behind ? 'none' : 'flex'
+    const span = tag.querySelector('span') as HTMLElement
+    span.textContent = `${a.currentJobType !== null ? a.currentJobType.replace(/_/g, ' ') : 'idle'} · ${(
+      a.battery * 100
+    ).toFixed(0)}%`
+    if (a.faulted) tag.classList.add('bad')
+    else tag.classList.remove('bad')
+  }
 }
 
 if (scrubber !== null) {
   scrubber.addEventListener('input', () => {
     playing = false
     cinematic = false
-    if (playButton !== null) playButton.textContent = 'play'
+    if (playButton !== null) playButton.textContent = 'PLAY'
     if (cutButton !== null) cutButton.classList.remove('on')
-    showFrame(Number(scrubber.value))
+    showAt(Number(scrubber.value))
   })
-}
-
-/** The scrubber's range, which is only known once the take has been finished. */
-function setUpTransport(): void {
-  if (scrubber !== null) scrubber.max = String(Math.max(0, take.frames.length - 1))
 }
 if (playButton !== null) {
   playButton.addEventListener('click', () => {
     playing = !playing
-    playButton.textContent = playing ? 'pause' : 'play'
+    playButton.textContent = playing ? 'PAUSE' : 'PLAY'
   })
 }
 if (cutButton !== null) {
@@ -296,38 +276,30 @@ if (cutButton !== null) {
     cinematic = !cinematic
     cutButton.classList.toggle('on', cinematic)
   })
-  cutButton.classList.add('on')
 }
-
-// The user grabbing the mouse means they want to look around.
-renderer.domElement.addEventListener('pointerdown', () => {
+if (speedButton !== null) {
+  speedButton.addEventListener('click', () => {
+    speed = speed === 1 ? 2 : speed === 2 ? 4 : 1
+    speedButton.textContent = `${speed.toFixed(1)}×`
+  })
+}
+renderer?.domElement.addEventListener('pointerdown', () => {
   cinematic = false
   cutButton?.classList.remove('on')
 })
 
-// -------------------------------------------------------------------- panel
-function row(a: string, b: string, cls = ''): string {
-  return `<tr class="${cls}"><td>${a}</td><td class="det">${b}</td></tr>`
+// -------------------------------------------------------------------- report
+function row(a: string, b: string): string {
+  return `<tr><td>${a}</td><td class="det">${b}</td></tr>`
 }
 
-/**
- * The report panel.
- *
- * Rendered *after* the run, not at load. The first version built it at module
- * scope, which is before the simulation has computed anything, so the panel said
- * "ticks 0, findings 0" and every miss read "nearest candidate — at Infinity
- * metres" — a report about a run that had not happened yet, presented as though
- * it had. The panel is the deliverable; it has to be about the actual run.
- */
 function renderPanel(): void {
-  // The run's findings, not the last frame's. The frame carries only what was
-  // known at that instant, and the verdict over one frame disagrees with the
-  // verdict over the run — 0.69 m against 0.63 m for the same miss. The report
-  // is the run's.
   const finalFindings = finalReport.findings
   const finalVerdict = buildVerdict(finalFindings, yachtTruth, manifoldAgents)
   const missed = finalVerdict.filter((v) => !v.found)
-side.innerHTML = `
+  const roomPct = (regionCoverage(take, take.frames.length - 1, yachtHouse.rooms[0]!.aabb) * 100).toFixed(1)
+
+  side.innerHTML = `
   <h2>${yachtHouse.name ?? yachtHouse.id}</h2>
   <p class="sub">The swarm, run on the vessel, recorded and replayed. The log hash is the hash of the run.</p>
 
@@ -345,6 +317,7 @@ side.innerHTML = `
     ${row('Recorded frames', String(take.frames.length))}
     ${row('Log hash', take.logHash)}
     ${row('Findings', String(finalFindings.length))}
+    ${row('Engine room coverage', `${roomPct}%`)}
   </table>
 
   <h3>Why the misses</h3>
@@ -374,25 +347,18 @@ side.innerHTML = `
       )
       .join('')}
   </table>
-  <p class="sub">A humidity anomaly of undetermined cause may be ${marineTaxonomy.signatures
-    .find((s) => s.id === 'moisture_leak')!
-    .causes.join(', ')
-    .replace(/_/g, ' ')}. No single measurement separates them.</p>
 
   <h3>What the swarm cannot see</h3>
   ${marineTaxonomy.classes
     .filter((c) => c.observable === 'not_observable')
-    .map(
-      (c) =>
-        `<p class="miss arch"><b>${c.docRef} ${c.name}</b><br>${c.note}</p>`,
-    )
+    .map((c) => `<p class="miss arch"><b>${c.docRef} ${c.name}</b><br>${c.note}</p>`)
     .join('')}
 
   <h3>The apertures</h3>
   <table>
     ${row('Deck hatch clear width', '200 mm')}
     ${row('Ground bot', `340 mm across (r = ${GROUND_BOT.radius} m)`)}
-    ${row('Hover bot', `240 mm across (r = ${HOVER.radius} m); needs 0.40 m of passage and ${HOVER_CLEARANCE_M} m of ceiling`)}
+    ${row('Hover bot', `240 mm across (r = ${HOVER.radius} m); 0.40 m of passage, ${HOVER_CLEARANCE_M} m of ceiling`)}
     ${row('Inchworm', `80 mm, but confined to conduits`)}
     ${row('A person', '1.8 m. An arm and a torch go through 200 mm; a body does not.')}
   </table>
@@ -407,56 +373,61 @@ side.innerHTML = `
 function loop(now: number): void {
   const dt = lastTime === 0 ? 0 : (now - lastTime) / 1000
   lastTime = now
-  if (playing) {
-    const next = frameIndex + dt * FRAMES_PER_SECOND
-    if (next >= take.frames.length - 1) {
-      showFrame(0)
-    } else {
-      showFrame(Math.floor(next))
+
+  if (playing && take !== undefined) {
+    const framesPerSecond = (take.frames.length - 1) / RUN_SECONDS
+    let next = playhead + dt * framesPerSecond * speed
+    if (next >= take.frames.length - 1) next = 0
+    showAt(next)
+  }
+
+  if (cinematic && take !== undefined && orbit !== null && camera !== null) {
+    const t = playhead / Math.max(1, take.frames.length - 1)
+    const state = director.at(t, frameAt(take, playhead))
+    orbit.target.set(state.targetX, state.targetY, state.targetZ)
+    orbit.yaw = state.yaw
+    orbit.pitch = state.pitch
+    orbit.distance = state.distance
+    if (Math.abs(camera.fov - state.fov) > 0.01) {
+      camera.fov = state.fov
+      camera.updateProjectionMatrix()
     }
   }
-  if (cinematic) {
-    cameraAt(frameIndex / Math.max(1, take.frames.length - 1))
-  }
-  orbit.update()
-  composer.render()
+
+  orbit?.update()
+  composer?.render()
   requestAnimationFrame(loop)
 }
 
 function resize(): void {
-  camera.aspect = stage.clientWidth / stage.clientHeight
-  camera.updateProjectionMatrix()
-  renderer.setSize(stage.clientWidth, stage.clientHeight)
-  composer.setSize(stage.clientWidth, stage.clientHeight)
-  bloom.resolution.set(stage.clientWidth, stage.clientHeight)
+  if (camera !== null) {
+    camera.aspect = stage.clientWidth / stage.clientHeight
+    camera.updateProjectionMatrix()
+  }
+  renderer?.setSize(stage.clientWidth, stage.clientHeight)
+  composer?.setSize(stage.clientWidth, stage.clientHeight)
+  bloom?.resolution.set(stage.clientWidth, stage.clientHeight)
 }
 window.addEventListener('resize', resize)
 
-// The console handle. `take` is a getter rather than a value, because the
-// take does not exist until the run has finished and the handle is published
-// before that.
 Object.assign(window as unknown as Record<string, unknown>, {
   __yacht: {
-    scene,
-    yacht,
-    renderer,
-    camera,
-    orbit,
-    composer,
     run,
-    showFrame,
-    cameraAt,
+    director,
+    showAt,
     get take() {
       return take
+    },
+    get scene() {
+      return yacht?.group
     },
   },
 })
 
 void compute().then(() => {
   finishTheRun()
-  setUpTransport()
-  boot.classList.add('gone')
   renderPanel()
-  showFrame(0)
+  boot.classList.add('gone')
+  showAt(0)
   requestAnimationFrame(loop)
 })
