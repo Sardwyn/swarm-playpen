@@ -524,7 +524,14 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   // ----------------------------------------------------------------- the spaces
   const spaceVisuals = new Map<
     string,
-    { mesh: THREE.Mesh; edges: THREE.LineSegments; label: THREE.Sprite; def: SpaceDef }
+    {
+      mesh: THREE.Mesh
+      edges: THREE.LineSegments
+      label: THREE.Sprite
+      def: SpaceDef
+      /** The text the label is currently showing, so it is not rebuilt for nothing. */
+      text: string
+    }
   >()
 
   for (const s of spaces) {
@@ -552,7 +559,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       (s.aabb.minZ + s.aabb.maxZ) / 2,
     )
     group.add(label)
-    spaceVisuals.set(s.id, { mesh, edges, label, def: s })
+    spaceVisuals.set(s.id, { mesh, edges, label, def: s, text: s.name })
   }
 
   // ----------------------------------------------------------------- the deck
@@ -924,6 +931,15 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   const truthGroup = new THREE.Group()
   group.add(truthGroup)
 
+  // The visuals that persist between frames. Built once, moved thereafter.
+  const findingVisuals = new Map<
+    string,
+    { mesh: THREE.Mesh; glow: THREE.Sprite; label: THREE.Sprite }
+  >()
+  const jobVisuals = new Map<string, THREE.Mesh>()
+  const truthVisuals = new Map<string, { mesh: THREE.Mesh; glow: THREE.Sprite }>()
+  let truthBuilt = false
+
   const base = new THREE.Color(COLOURS.coverage)
   const hot = new THREE.Color(COLOURS.coverageHot)
   let findingIndex = 0
@@ -971,11 +987,22 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       const edgeMaterial = v.edges.material as THREE.LineBasicMaterial
       edgeMaterial.color.setHex(colour)
       edgeMaterial.opacity = examined ? 0.85 : 1
+      // The label is only rebuilt when its TEXT changes.
+      //
+      // `makeLabel` draws a canvas and uploads a texture. Doing it for every
+      // space on every frame — sixty times a second, for a word that changes
+      // twice in a run — is a hundred canvas allocations a second and a texture
+      // upload each one, and it was the largest single source of frame-time
+      // variance in the scene. A stutter that comes and goes with the picture
+      // is almost always this.
       const text = examined ? v.def.name : `${v.def.name} — UNREACHABLE`
-      const label = makeLabel(text, examined ? COLOURS.void : COLOURS.voidUnreachable, 0.42)
-      v.label.material.map?.dispose()
-      v.label.material.map = label.material.map
-      v.label.material.needsUpdate = true
+      if (text !== v.text) {
+        v.text = text
+        const label = makeLabel(text, examined ? COLOURS.void : COLOURS.voidUnreachable, 0.42)
+        v.label.material.map?.dispose()
+        v.label.material.map = label.material.map
+        v.label.material.needsUpdate = true
+      }
     }
 
     // -- the coverage field.
@@ -1052,56 +1079,99 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     }
 
     // -- the findings.
-    for (const child of [...findingGroup.children]) {
-      findingGroup.remove(child)
-      ;(child as THREE.Mesh).geometry?.dispose()
-    }
+    //
+    // Built once and then MOVED, rather than destroyed and rebuilt every frame.
+    // The first version did the latter: eight findings times a mesh, a canvas
+    // texture and a sprite, sixty times a second. Eight hundred canvas
+    // allocations a second is not a frame budget, it is a stall.
+    const seenFindings = new Set<string>()
     findingIndex = 0
     for (const f of frame.findings) {
-      const mesh = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.16, 0),
-        new THREE.MeshBasicMaterial({ color: COLOURS.finding, transparent: true, opacity: 0.95 }),
-      )
-      mesh.position.set(f.x, 0.35, f.z)
-      findingGroup.add(mesh)
-      const glow = makeGlow(COLOURS.finding, 0.9)
-      glow.position.set(f.x, 0.35, f.z)
-      findingGroup.add(glow)
-      const label = makeLabel(f.detectorId, COLOURS.finding, 0.3)
-      label.position.set(f.x, 0.8 + (findingIndex % 4) * 0.42, f.z)
-      findingGroup.add(label)
+      seenFindings.add(f.id)
+      let v = findingVisuals.get(f.id)
+      if (v === undefined) {
+        const mesh = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.16, 0),
+          new THREE.MeshBasicMaterial({ color: COLOURS.finding, transparent: true, opacity: 0.95 }),
+        )
+        const glow = makeGlow(COLOURS.finding, 0.9)
+        const label = makeLabel(f.detectorId, COLOURS.finding, 0.3)
+        findingGroup.add(mesh)
+        findingGroup.add(glow)
+        findingGroup.add(label)
+        v = { mesh, glow, label }
+        findingVisuals.set(f.id, v)
+      }
+      v.mesh.position.set(f.x, 0.35, f.z)
+      v.glow.position.set(f.x, 0.35, f.z)
+      v.label.position.set(f.x, 0.8 + (findingIndex % 4) * 0.42, f.z)
       findingIndex++
+    }
+    for (const [id, v] of findingVisuals) {
+      if (seenFindings.has(id)) continue
+      findingGroup.remove(v.mesh)
+      findingGroup.remove(v.glow)
+      findingGroup.remove(v.label)
+      v.mesh.geometry.dispose()
+      findingVisuals.delete(id)
     }
 
     // -- the jobs.
-    for (const child of [...jobGroup.children]) jobGroup.remove(child)
+    //
+    // Twenty-one jobs, each a torus geometry, rebuilt sixty times a second.
+    const seenJobs = new Set<string>()
     for (const j of frame.jobs) {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.24, 0.02, 6, 20),
-        new THREE.MeshBasicMaterial({ color: COLOURS.void, transparent: true, opacity: 0.6 }),
-      )
-      ring.rotation.x = Math.PI / 2
+      seenJobs.add(j.id)
+      let ring = jobVisuals.get(j.id)
+      if (ring === undefined) {
+        ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.24, 0.02, 6, 20),
+          new THREE.MeshBasicMaterial({ color: COLOURS.void, transparent: true, opacity: 0.6 }),
+        )
+        ring.rotation.x = Math.PI / 2
+        jobGroup.add(ring)
+        jobVisuals.set(j.id, ring)
+      }
       ring.position.set(j.x, 0.06, j.z)
-      jobGroup.add(ring)
+    }
+    for (const [id, ring] of jobVisuals) {
+      if (seenJobs.has(id)) continue
+      jobGroup.remove(ring)
+      ring.geometry.dispose()
+      jobVisuals.delete(id)
     }
 
     // -- the truth overlay.
-    for (const child of [...truthGroup.children]) truthGroup.remove(child)
-    for (const t of frame.truth) {
-      const mesh = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.2, 0),
-        new THREE.MeshBasicMaterial({
-          color: COLOURS.truth,
-          wireframe: true,
-          transparent: true,
-          opacity: 0.95,
-        }),
-      )
-      mesh.position.set(t.x, t.y, t.z)
-      truthGroup.add(mesh)
-      const glow = makeGlow(COLOURS.truth, 0.85)
-      glow.position.set(t.x, t.y, t.z)
-      truthGroup.add(glow)
+    //
+    // The oracle does not change during a run, so this is built once.
+    if (truthBuilt) {
+      for (let i = 0; i < frame.truth.length; i++) {
+        const t = frame.truth[i]!
+        const v = truthVisuals.get(String(i))
+        if (v === undefined) continue
+        v.mesh.position.set(t.x, t.y, t.z)
+        v.glow.position.set(t.x, t.y, t.z)
+      }
+    } else {
+      truthBuilt = true
+      for (let i = 0; i < frame.truth.length; i++) {
+        const t = frame.truth[i]!
+        const mesh = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.2, 0),
+          new THREE.MeshBasicMaterial({
+            color: COLOURS.truth,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.95,
+          }),
+        )
+        mesh.position.set(t.x, t.y, t.z)
+        truthGroup.add(mesh)
+        const glow = makeGlow(COLOURS.truth, 0.85)
+        glow.position.set(t.x, t.y, t.z)
+        truthGroup.add(glow)
+        truthVisuals.set(String(i), { mesh, glow })
+      }
     }
 
     // -- the pings. Each agent pings on its own cadence, and the ring is the
