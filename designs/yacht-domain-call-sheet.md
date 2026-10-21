@@ -100,6 +100,21 @@ it took, whether it was found to be dry or wet.
 >
 → So what:
 
+**And the follow-up, which is the one the whole product turns on:** *how big was the
+opening?* Not "could you get in" — **how wide was the hole**, and could a person's
+arm and a torch go through it?
+
+Because 200 mm is a hand-hole, not a man-way. Nobody gets their body through one.
+A surveyor kneels on the deck, puts an arm and a torch in, and feels around. That
+is the practice, and the practice is the benchmark: **the instrument has to be able
+to do something a person's arm can do, or it is not worth carrying.**
+
+Ask it as: *"When you open one of those, what's the smallest hole you'd call an
+access? And would you put your arm in and feel round, or would you get in?"*
+
+🎯 **Good:** a number. "150 by 150" or "200 by 300" or "you'd cut it bigger".
+⚠️ **Bad:** "it varies" — then ask which of his own boats.
+
 ---
 
 ### A3. What's inside a stringer void?

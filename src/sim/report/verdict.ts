@@ -72,10 +72,14 @@ export function buildVerdict(
     }
 
     const agents = manifoldAgents.get(a.manifold) ?? []
+    // "at Infinity metres" is not a measurement. When nothing was raised on this
+    // manifold at all, say so.
+    const nearestText =
+      Number.isFinite(nearest) ? `nearest candidate ${nearestId} at ${nearest.toFixed(2)} m` : 'no candidate was raised'
     const detail =
       agents.length === 0
         ? 'no agent in the swarm lives on this manifold'
-        : `agents on this manifold: ${agents.join(', ')}; nearest candidate ${nearestId} at ${nearest.toFixed(2)} m`
+        : `agents on this manifold: ${agents.join(', ')}; ${nearestText}`
 
     const kind: MissKind =
       matched !== undefined ? 'FOUND' : nearest <= NEAR_CANDIDATE_M ? 'DETECTION' : 'ARCHITECTURE'

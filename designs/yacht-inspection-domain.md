@@ -194,6 +194,29 @@ mean the void thesis is dead for this class.
 
 **This is question 1 for Otto (§11). It decides everything else.**
 
+**And "reachable" has to mean two different things, because a 200 mm opening is a
+hand-hole.** A *body* does not go through one — the shoulder is 400 mm and the hole
+is 200. But an *arm* does, with a torch, and that is what a surveyor actually
+does: kneel on the deck, put your hand and a light into the void, and feel around
+for damp. So:
+
+| | a body | an arm and a torch |
+|---|---|---|
+| a 200 mm hand-hole | **no** | **yes** |
+| a 300 × 200 mm inspection hatch | **no** | **yes** |
+| a 400 mm man-way | **yes** | yes |
+
+The instrument's benchmark is the second column, not the first. A swarm that can do
+what a person's arm can do is worth carrying onto a boat; a swarm that can only do
+what a person can do by climbing in is worth nothing, because the person will
+climb in.
+
+That reframing is what the twin found by accident. The first version of this
+domain claimed a person could get *through* a 200 mm hatch, which is false, and
+the picture it produced — a person standing inside the void — was impossible. The
+correct claim is smaller, and the product it implies is more achievable: **be the
+arm, not the body.**
+
 ---
 
 ## 5. The fault taxonomy with observability

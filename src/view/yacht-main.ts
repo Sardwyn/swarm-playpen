@@ -89,17 +89,31 @@ async function compute(): Promise<void> {
   }
 }
 
-const finalReport = buildReport({
-  runId: `yacht-${yachtHouse.id}-seed-${SEED}`,
-  tick: run.tick,
-  simSeconds: run.tick / 10,
-  candidates: run.candidates,
-  truth: run.truth,
-  rooms: yachtHouse.rooms,
-  coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
-  regionCoverage: [],
-})
-const take = recorder.finish(run, finalReport)
+/**
+ * The take, finished once the run is finished.
+ *
+ * Assigned late, and on purpose. `TakeRecorder.finish` hands back the live
+ * frames array, so a take finished *before* the run still grew as the recorder
+ * appended to it — which is why the scene looked right while the log hash was
+ * the hash of an empty run and the panel reported no findings at all. A
+ * half-live object is worse than a late one.
+ */
+let take!: ReturnType<typeof recorder.finish>
+let finalReport!: ReturnType<typeof buildReport>
+
+function finishTheRun(): void {
+  finalReport = buildReport({
+    runId: `yacht-${yachtHouse.id}-seed-${SEED}`,
+    tick: run.tick,
+    simSeconds: run.tick / 10,
+    candidates: run.candidates,
+    truth: run.truth,
+    rooms: yachtHouse.rooms,
+    coverage: [{ manifold: 'ground', fraction: 0, observedCells: 0, totalCells: 0 }],
+    regionCoverage: [],
+  })
+  take = recorder.finish(run, finalReport)
+}
 
 // The spaces: the ground-manifold rooms and the volumetric ones, from the same
 // content file the simulator read.
@@ -258,7 +272,6 @@ function updateVerdict(frame: ReturnType<typeof frameFromTake>): void {
 }
 
 if (scrubber !== null) {
-  scrubber.max = String(Math.max(0, take.frames.length - 1))
   scrubber.addEventListener('input', () => {
     playing = false
     cinematic = false
@@ -266,6 +279,11 @@ if (scrubber !== null) {
     if (cutButton !== null) cutButton.classList.remove('on')
     showFrame(Number(scrubber.value))
   })
+}
+
+/** The scrubber's range, which is only known once the take has been finished. */
+function setUpTransport(): void {
+  if (scrubber !== null) scrubber.max = String(Math.max(0, take.frames.length - 1))
 }
 if (playButton !== null) {
   playButton.addEventListener('click', () => {
@@ -292,10 +310,23 @@ function row(a: string, b: string, cls = ''): string {
   return `<tr class="${cls}"><td>${a}</td><td class="det">${b}</td></tr>`
 }
 
-const finalFindings = frameFromTake(take, take.frames.length - 1).findings
-const finalVerdict = buildVerdict(finalFindings, yachtTruth, manifoldAgents)
-const missed = finalVerdict.filter((v) => !v.found)
-
+/**
+ * The report panel.
+ *
+ * Rendered *after* the run, not at load. The first version built it at module
+ * scope, which is before the simulation has computed anything, so the panel said
+ * "ticks 0, findings 0" and every miss read "nearest candidate — at Infinity
+ * metres" — a report about a run that had not happened yet, presented as though
+ * it had. The panel is the deliverable; it has to be about the actual run.
+ */
+function renderPanel(): void {
+  // The run's findings, not the last frame's. The frame carries only what was
+  // known at that instant, and the verdict over one frame disagrees with the
+  // verdict over the run — 0.69 m against 0.63 m for the same miss. The report
+  // is the run's.
+  const finalFindings = finalReport.findings
+  const finalVerdict = buildVerdict(finalFindings, yachtTruth, manifoldAgents)
+  const missed = finalVerdict.filter((v) => !v.found)
 side.innerHTML = `
   <h2>${yachtHouse.name ?? yachtHouse.id}</h2>
   <p class="sub">The swarm, run on the vessel, recorded and replayed. The log hash is the hash of the run.</p>
@@ -370,6 +401,7 @@ side.innerHTML = `
   <p class="sub warn">None of this is a measurement. The principal characteristics are Sunseeker's published figures; every profile, bulkhead, deck height, hatch size and pipe route is assumed.</p>
   <ul>${yachtAssumptions.map((a) => `<li class="det">${a}</li>`).join('')}</ul>
 `
+}
 
 // --------------------------------------------------------------------- loop
 function loop(now: number): void {
@@ -400,12 +432,31 @@ function resize(): void {
 }
 window.addEventListener('resize', resize)
 
+// The console handle. `take` is a getter rather than a value, because the
+// take does not exist until the run has finished and the handle is published
+// before that.
 Object.assign(window as unknown as Record<string, unknown>, {
-  __yacht: { scene, yacht, renderer, camera, orbit, composer, take, run, showFrame, cameraAt },
+  __yacht: {
+    scene,
+    yacht,
+    renderer,
+    camera,
+    orbit,
+    composer,
+    run,
+    showFrame,
+    cameraAt,
+    get take() {
+      return take
+    },
+  },
 })
 
 void compute().then(() => {
+  finishTheRun()
+  setUpTransport()
   boot.classList.add('gone')
+  renderPanel()
   showFrame(0)
   requestAnimationFrame(loop)
 })
