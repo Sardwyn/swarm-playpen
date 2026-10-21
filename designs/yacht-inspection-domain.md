@@ -441,45 +441,90 @@ competitor, our channel, and our first design partner.*
 | | |
 |---|---|
 | `src/sim/world/yacht-form.ts` | Parametric hull. Keel lift, beam plan, freeboard, deadrise, chine ratio over eleven stations. The section is keel + chine + sheer. |
-| `src/sim/world/yacht.ts` | Regions, hatches, the access graph, and the person/crawler reachability sets. |
-| `src/sim/world/yacht-content.ts` | The single load path for the content, shared by the diagnostic and the browser. |
-| `src/content/yacht-01.json` | The vessel. Every assumption marked. |
+| `src/sim/world/yacht-sim.ts` | The single load path: the vessel, the oracle, the hull form, the assumptions. |
+| `src/content/yacht-sim-01.json` | The vessel, in the house's own schema. Every assumption marked. |
+| `src/content/yacht-sim-anomalies-01.json` | The oracle, with a reason for every miss. |
+| `src/sim/report/take.ts` | A recorded run, coverage delta-encoded, so a scrubber replays it instantly. |
+| `src/sim/report/verdict.ts` | A miss classified by cause: ARCHITECTURE or DETECTION. |
+| `src/sim/report/frame.ts` | The frame contract, now including the volumetric coverage. |
 | `src/view/hull.ts` | Hull geometry: shell, plating at the cut plane, profile curve, sheer line. |
-| `src/view/yacht-scene.ts` | The scene. Ghost hull, void volumes, access rings, fault beacons with drop lines to the plating. |
-| `src/view/yacht-main.ts` | Entry point, panel, camera. |
+| `src/view/yacht-scene.ts` | The scene. Ghost hull, coverage drawn into it, the unreachable volume dark and red. |
+| `src/view/yacht-main.ts` | Run, record, replay, scrubber, panel. |
 | `index-yacht.html` | The page. `npm run dev`, then `/index-yacht.html`. |
-| `scripts/diag-yacht-form.ts` | The ASCII inboard profile, the access graph, the sensitivity sweep, and the content-defect pass. `npm run diag:yacht`. |
-| `test/world/yacht-domain.test.ts` | 18 tests. |
+| `scripts/diag-yacht-form.ts` | The inboard profile and the access arithmetic. `npm run diag:yacht`. |
+| `scripts/diag-yacht-sim.ts` | The run, the findings, and the verdict. `npm run diag:yacht-sim`. |
+| `test/world/yacht-domain.test.ts` | The claim, asserted. |
 
-**The scene and the diagnostic read the same content through the same module**, so
-the picture on screen and the profile in the terminal are the same boat. A
-diagnostic that reads the file and a scene that imports it can drift, and the drift
-is invisible until somebody puts the two side by side.
-
-**Two bugs the render found that the diagnostic did not**, both of the same class as
-the ones already in this project:
-
-- the topside parameter was extrapolated past 1 when the cut plane was outboard of
-  the sheer, and the profile came out **13.44 m tall on a boat whose sheer is
-  4.16 m**. The cut plane leaves the hull forward of the forefoot, and the function
-  extrapolated instead of saying so.
-- the plating was filled down to the baseline, which on a deep-V hull is most of
-  the frame. The space under the hull is sea, not plating.
-
-Both are now tests. A geometry bug that only shows up in a render is a bug that
-survives until somebody looks at the render.
+**One content file.** The parallel regions model is gone. The vessel is a content
+file in the house's own schema, the oracle is a separate file as it is for the house,
+and the engine reads both through the same loaders. The scene and the diagnostic read
+the same bytes through the same module, so the picture on screen and the profile in
+the terminal are the same boat.
 
 ---
 
-## 14. Relationship to the other work
+## 14. The result
+
+```
+engine room coverage 98.9%    4 found, 3 missed
+
+  yc-01  sev 0.60  FOUND
+  yc-02  sev 0.50  DETECTION     nearest candidate 0.63 m
+  yc-03  sev 0.75  FOUND
+  yc-04  sev 0.85  ARCHITECTURE  nearest candidate 7.61 m
+  yc-05  sev 0.40  DETECTION     nearest candidate 0.01 m
+  yc-06  sev 0.50  FOUND
+  yc-07  sev 0.70  FOUND
+```
+
+**The most severe fault on the vessel is in the forward stringer void, and the swarm
+never gets near it.** The void is entered only through two 200 mm deck hatches; the
+ground bot is 340 mm across, the hover bot needs 400 mm of clearance, and the
+inchworm is confined to conduits. A person can get through a 200 mm hatch.
+
+**And the other two misses are not dressed up as coverage failures.** The swarm was
+0.63 m and 0.01 m away from those faults and the detectors did not match them.
+That is a detector limitation and it is reported as one.
+
+The distinction is the report. *The boat's architecture stopped the swarm* versus *our
+detector is imprecise.* One is the product; the other is a bug.
+
+### What is authored and what falls out
+
+Authored: the published principal characteristics, the profiles, the bulkheads, the
+deck heights, the pipe routes, the hatch clear widths, the fault taxonomy.
+
+Fell out of the geometry: the engine room's coverage, the four findings, the two
+detection misses, the architectural miss, the distance from the swarm to the fault it
+never found, and the fact that a person can reach the space a robot cannot.
+
+---
+
+## 15. Bugs this round, and what they are about
+
+| | |
+|---|---|
+| The topside parameter extrapolated past 1 when the cut plane was outboard of the sheer | The profile came out **13.44 m tall on a boat whose sheer is 4.16 m**. The cut plane leaves the hull forward of the forefoot and the function extrapolated instead of saying so. |
+| The plating filled down to the baseline | On a deep-V hull that is most of the frame. The space under the hull is sea, not plating. |
+| The diagnostic restricted the match to the ground manifold | That removed the volumetric faults from the pool, so the deckhead fault looked missed for a reason that was an artefact of the diagnostic. |
+| An array literal whose arrow functions referenced the binding they were being destructured from | A temporal dead zone waiting to happen. |
+
+**The third one is the one worth remembering.** The diagnostic was not lying — it was
+*answering a narrower question than it appeared to*, and the answer it produced was
+indistinguishable from a real finding. A diagnostic that restricts the search space
+produces false negatives that look exactly like results.
+
+---
+
+## 16. Relationship to the other work
 
 The same instrument, three domains:
 
 | Domain | What it measures | Status |
 |---|---|---|
-| Building inspection (the swarm) | spatial recognition, anomaly detection, manifold heterogeneity | built — 425 tests |
-| Yacht condition | void state, corrosion precursors, coverage of what is unreachable | §0–§10, this document |
-| Maritime digital twin (Thales route) | fault traceability, corroboration in low-connectivity | drafted — `thales-application.md` |
+| Building inspection (the swarm) | spatial recognition, anomaly detection, manifold heterogeneity | built - 425 tests |
+| Yacht condition | void state, corrosion precursors, coverage of what is unreachable | built - this document |
+| Maritime digital twin (Thales route) | fault traceability, corroboration in low-connectivity | drafted - `thales-application.md` |
 
 And the through-line across the whole portfolio, which is the same in every case:
 
