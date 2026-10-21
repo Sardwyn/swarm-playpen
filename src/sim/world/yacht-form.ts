@@ -41,6 +41,8 @@
  * carries one.
  */
 
+import { tan } from '../math.ts'
+
 export type Profiles = {
   /**
    * How far the keel is lifted above its lowest point, as a fraction of the draft.
@@ -154,7 +156,7 @@ export function buildHullForm(
     // at the local deadrise angle. Deriving it this way rather than reading it from a
     // table keeps the section self-consistent: change the deadrise and the chine
     // moves with it.
-    const chineY = keelY + chineZ * Math.tan((deadriseDeg * Math.PI) / 180)
+    const chineY = keelY + chineZ * tan((deadriseDeg * Math.PI) / 180)
     stations.push({
       u,
       x: -principal.loa / 2 + u * principal.loa,
@@ -215,7 +217,7 @@ export function hullBottomY(form: HullForm, u: number, z: number): number {
   const s = stationAt(form, u)
   const a = Math.abs(z)
   if (a <= s.chineZ) {
-    return s.keelY + a * Math.tan((s.deadriseDeg * Math.PI) / 180)
+    return s.keelY + a * tan((s.deadriseDeg * Math.PI) / 180)
   }
   if (s.sheerZ <= s.chineZ) return s.chineY
   const t = Math.min(1, (a - s.chineZ) / (s.sheerZ - s.chineZ))

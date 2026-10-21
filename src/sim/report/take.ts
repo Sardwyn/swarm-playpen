@@ -36,7 +36,9 @@ import type { Finding, InspectionReport } from './report.ts'
 import type { AnomalySet } from '../world/anomalies.ts'
 import { buildReport } from './report.ts'
 import type { SimRun } from '../sim/run.ts'
+import type { SimEvent } from '../types.ts'
 import { coverage } from '../world/geometry.ts'
+import { angleDelta } from '../math.ts'
 
 /** One recorded frame: what changed, and where everything was. */
 export type TakeFrame = {
@@ -45,6 +47,15 @@ export type TakeFrame = {
   readonly agents: readonly AgentFrame[]
   readonly jobs: readonly JobFrame[]
   readonly findings: readonly Finding[]
+  /**
+   * The events emitted during this frame.
+   *
+   * A take that cannot say what happened is a video, and a video cannot be a
+   * report. The console needs the stream — a fault, a hand-off, an agent
+   * running flat — and the run's log already has all of it; it was simply not
+   * being kept.
+   */
+  readonly events: readonly SimEvent[]
   /** Ground-manifold cells whose observation count changed, and the new count. */
   readonly observedDeltas: readonly { readonly index: number; readonly value: number }[]
   /** Volumetric raster cells that changed, and their new state. */
@@ -107,6 +118,8 @@ export class TakeRecorder {
   private previousObserved: Uint32Array | null = null
   private previousRasters: Uint16Array[] = []
   private lastTick = -1
+  /** How much of the run's log has already been taken. */
+  private loggedCount = 0
 
   constructor(options: RecorderOptions) {
     this.options = options
@@ -163,12 +176,19 @@ export class TakeRecorder {
     }
     this.previousRasters = currentRasters
 
+    // The events since the last frame. The log's array is live, so this is a
+    // slice of the new entries and not a copy of the whole thing.
+    const log = run.log.all()
+    const events = log.slice(this.loggedCount)
+    this.loggedCount = log.length
+
     this.frames.push({
       tick: run.tick,
       simSeconds: run.tick / 10,
       agents: agentsOf(run),
       jobs: jobsOf(run),
       findings: reportFindings(run),
+      events,
       observedDeltas,
       rasterDeltas,
     })
@@ -348,6 +368,55 @@ export function frameFromTake(take: Take, index: number): SimFrame {
     rasters,
     report: take.report,
   }
+}
+
+/**
+ * The frame at a fractional index, with the agents interpolated.
+ *
+ * The take records a frame every few ticks, so the recorded frames are
+ * snapshots at a few tens of frames per second. Played back as they are, a
+ * robot moves in visible steps — and a camera that tracks it judders with it,
+ * because the camera's own input is the frame index and the frame index is an
+ * integer.
+ *
+ * That was the jerk. The camera was being asked for its position at a
+ * quantised time and then told to follow a robot that was itself quantised, so
+ * the whole thing moved in twenty steps a second and looked like a slide
+ * show with a camera on it.
+ *
+ * Interpolating the pose between the two surrounding frames makes the motion
+ * continuous. It is the difference between a recording of a machine and a
+ * machine that appears to be working.
+ *
+ * The **coverage is not interpolated.** It only ever grows, and it is a field
+ * of counts — cells looked at twice or more. Lerping it would draw coverage
+ * that was never measured, which is the one thing this whole project is
+ * against. The coverage steps at the record rate, which is honest, and the
+ * bloom hides the step.
+ */
+export function frameAt(take: Take, indexFloat: number): SimFrame {
+  const last = take.frames.length - 1
+  const i = Math.max(0, Math.min(last, Math.floor(indexFloat)))
+  const j = Math.min(last, i + 1)
+  const f = indexFloat - i
+  const a = frameFromTake(take, i)
+  if (j === i || f < 1e-6) return a
+  const b = frameFromTake(take, j)
+
+  const agents = a.agents.map((ag, k) => {
+    const bg = b.agents[k]
+    if (bg === undefined || bg.id !== ag.id) return ag
+    return {
+      ...ag,
+      x: ag.x + (bg.x - ag.x) * f,
+      y: ag.y + (bg.y - ag.y) * f,
+      z: ag.z + (bg.z - ag.z) * f,
+      heading: ag.heading + angleDelta(ag.heading, bg.heading) * f,
+      battery: ag.battery + (bg.battery - ag.battery) * f,
+    }
+  })
+
+  return { ...a, agents }
 }
 
 /** How much of the run's coverage has been examined, at a frame. */

@@ -24,6 +24,7 @@
 
 import type { Finding } from './report.ts'
 import type { AnomalySet } from '../world/anomalies.ts'
+import { hypot2 } from '../math.ts'
 
 export type MissKind = 'FOUND' | 'ARCHITECTURE' | 'DETECTION'
 
@@ -69,7 +70,7 @@ export function buildVerdict(
     let nearest = Number.POSITIVE_INFINITY
     let nearestId = '—'
     for (const f of findings) {
-      const d = Math.hypot(f.x - a.position[0], f.z - a.position[2])
+      const d = hypot2(f.x - a.position[0], f.z - a.position[2])
       if (d < nearest) {
         nearest = d
         nearestId = f.detectorId
