@@ -33,7 +33,9 @@ import {
 import type { RawContent } from '../../src/sim/world/yacht.ts'
 import {
   buildHullForm,
+  cutPlaneLeavesHullAt,
   hullBottomY,
+  hullHalfBreadthAt,
   stationAt,
   uFromX,
 } from '../../src/sim/world/yacht-form.ts'
@@ -83,6 +85,32 @@ describe('hull form', () => {
   it('has the hull bottom rising with the distance off the centreline', () => {
     const u = uFromX(model.form, 0)
     expect(hullBottomY(model.form, u, 0)).toBeLessThan(hullBottomY(model.form, u, 0.5))
+  })
+
+  it('never puts the hull bottom above the sheer, whatever the offset', () => {
+    // The first version extrapolated the topside parameter past 1 when the offset
+    // was outboard of the sheer, and the profile ribbon came out 13.44 m tall on a
+    // boat whose sheer is 4.16 m. It was visible in the first render and it was
+    // silent in the diagnostic, which is exactly the failure class this project
+    // keeps hitting.
+    for (let i = 0; i <= 200; i++) {
+      const u = i / 200
+      const sheer = stationAt(model.form, u).sheerY
+      for (const z of [0, 0.2, 0.65, 1.0, 2.0, 2.4, 3.0]) {
+        expect(hullBottomY(model.form, u, z), `u=${u} z=${z}`).toBeLessThanOrEqual(sheer + 1e-9)
+      }
+    }
+  })
+
+  it('knows where the cut plane leaves the hull', () => {
+    const limit = cutPlaneLeavesHullAt(model.form, 0.65)
+    // The plane is inside the hull at the limit and outside just past it.
+    expect(limit).toBeGreaterThan(0)
+    expect(limit).toBeLessThan(model.form.principal.loa / 2)
+    const uAtLimit = uFromX(model.form, limit)
+    expect(hullHalfBreadthAt(model.form, uAtLimit)).toBeGreaterThanOrEqual(0.65 - 1e-6)
+    const uJustPast = uFromX(model.form, limit + 0.05)
+    expect(hullHalfBreadthAt(model.form, uJustPast)).toBeLessThan(0.65)
   })
 })
 

@@ -118,6 +118,7 @@
   ],
 
   "crawlerDiameterMm": 120,
+  "voidWidthM": 0.7,
 
   "sources": [
     { "id": "src-engines", "kind": "thermal", "x": -6.4, "y": 2.0, "label": "Main engines" },

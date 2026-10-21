@@ -108,6 +108,8 @@ export type YachtModel = {
   readonly crawlerReachability: ReadonlyMap<string, readonly string[]>
   /** Diameter of the crawler, in millimetres. The parameter that decides whether a hatch is a route or a wall. */
   readonly crawlerDiameterMm: number
+  /** Transverse width of a stringer void, in metres. */
+  readonly voidWidthM: number
   regionAt(x: number, y: number): YachtRegion | undefined
 }
 
@@ -125,6 +127,8 @@ export type RawContent = {
   assumptions: readonly string[]
   /** Diameter of the crawler in millimetres. Decides whether a hatch is a route or a wall. */
   crawlerDiameterMm?: number
+  /** Transverse width of a stringer void, in metres. ASSUMED. */
+  voidWidthM?: number
 }
 
 /**
@@ -209,6 +213,7 @@ export function reachableProfileArea(
 export function loadYacht01(raw: RawContent): YachtModel {
   const form = buildHullForm(raw.principal, raw.profiles)
   const crawlerDiameterMm = raw.crawlerDiameterMm ?? 0
+  const voidWidthM = raw.voidWidthM ?? 0.7
   const personReachability = computeReachability(raw.regions, raw.hatches, null)
   const crawlerReachability = computeReachability(raw.regions, raw.hatches, crawlerDiameterMm)
 
@@ -228,6 +233,7 @@ export function loadYacht01(raw: RawContent): YachtModel {
     personReachability,
     crawlerReachability,
     crawlerDiameterMm,
+    voidWidthM,
     regionAt,
   }
 }

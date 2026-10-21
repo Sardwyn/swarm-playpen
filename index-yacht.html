@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yacht Inspection Domain — Sunseeker MY</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --line: #30363d;
+        --text: #c9d1d9;
+        --dim: #8b949e;
+        --ok: #68d391;
+        --warn: #ed8936;
+        --accent: #4fd1c5;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      #app { display: flex; height: 100%; }
+      #stage { flex: 1 1 auto; position: relative; outline: none; }
+      #side {
+        flex: 0 0 400px;
+        overflow-y: auto;
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+        padding: 12px 14px;
+      }
+      #hint {
+        position: absolute;
+        left: 12px;
+        top: 10px;
+        padding: 4px 10px;
+        background: rgba(13, 17, 23, 0.82);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--dim);
+        pointer-events: none;
+      }
+      #legend {
+        position: absolute;
+        left: 12px;
+        bottom: 10px;
+        padding: 8px 12px;
+        background: rgba(13, 17, 23, 0.82);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--dim);
+        pointer-events: none;
+        line-height: 1.7;
+      }
+      #legend b { color: var(--text); font-weight: 500; }
+      .swatch { display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: baseline; }
+      h2 { font-size: 14px; margin: 0 0 2px; color: var(--accent); }
+      h3 { font-size: 12px; margin: 16px 0 4px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+      p.sub { color: var(--dim); margin: 0 0 6px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { text-align: left; color: var(--dim); font-weight: 500; padding: 2px 4px; }
+      td { padding: 2px 4px; vertical-align: top; }
+      td.det { color: var(--dim); font-size: 11px; }
+      tr.ok td:first-child { color: var(--ok); }
+      tr.warn td:first-child { color: var(--warn); }
+      tr.muted td { color: var(--dim); }
+      .warn { color: var(--warn); }
+      .ok { color: var(--ok); }
+      ul { margin: 4px 0; padding-left: 18px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage" tabindex="0">
+        <div id="hint">drag to orbit · scroll to zoom</div>
+        <div id="legend">
+          <div><span class="swatch" style="background:#4fd1c5"></span><b>reachable void</b></div>
+          <div><span class="swatch" style="background:#8b949e"></span><b>unreachable void</b></div>
+          <div><span class="swatch" style="background:#68d391"></span><b>access point</b></div>
+          <div><span class="swatch" style="background:#f6e05e"></span><b>fault</b> — with the drop line to the plating below</div>
+          <div><span class="swatch" style="background:#fc8181"></span><b>vapour</b> <span class="swatch" style="background:#ed8936"></span><b>heat</b> <span class="swatch" style="background:#63b3ed"></span><b>water</b></div>
+        </div>
+      </div>
+      <div id="side"></div>
+    </div>
+    <script type="module" src="/src/view/yacht-main.ts"></script>
+  </body>
+</html>

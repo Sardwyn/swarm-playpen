@@ -448,13 +448,22 @@ export class Viewer {
  * lines here means the viewer's entire dependency surface is one import of
  * `three`, and the boundary test only has to reason about `three` itself.
  */
-class OrbitShim {
+/**
+ * A minimal orbit control, inlined so the viewer's entire dependency surface is a
+ * single import of `three`.
+ *
+ * Exported because the yacht scene needs the same behaviour and there should be
+ * one implementation of it. The fields are public so a scene can set an opening
+ * framing — a building and a boat want different ones.
+ */
+export class OrbitShim {
   enabled = true
   readonly target = new THREE.Vector3()
 
-  private yaw = -Math.PI / 4
-  private pitch = 0.9
-  private distance = 22
+  yaw = -Math.PI / 4
+  pitch = 0.9
+  distance = 22
+
   private dragging = false
   private lastX = 0
   private lastY = 0

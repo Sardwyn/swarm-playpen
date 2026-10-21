@@ -169,6 +169,20 @@ export function stationAt(form: HullForm, u: number): Station {
  * Below the chine the section is the straight deadrise line. Above it, the topside
  * runs from the chine to the sheer, which flares outboard, so the inner surface at
  * a given height is narrower than the sheer.
+ *
+ * ## The offset may be outboard of the hull entirely
+ *
+ * A deep-V hull closes up forward, so a plane offset to starboard leaves the hull
+ * well before the stem — at 0.65 m it is outside the hull forward of about
+ * x = 6.9 m on this form.
+ *
+ * The first version of this function **extrapolated** in that case: the topside
+ * parameter `t` went past 1 and the returned height ran to 13.44 m on a boat whose
+ * sheer is 4.16 m. The profile ribbon was then a sail instead of a strip, and it
+ * was visible in the first render.
+ *
+ * So the parameter is clamped, and the caller is expected to truncate the profile
+ * where the plane leaves the hull. `hullHalfBreadthAt` is how it finds out.
  */
 export function hullBottomY(form: HullForm, u: number, z: number): number {
   const s = stationAt(form, u)
@@ -177,8 +191,33 @@ export function hullBottomY(form: HullForm, u: number, z: number): number {
     return s.keelY + a * Math.tan((s.deadriseDeg * Math.PI) / 180)
   }
   if (s.sheerZ <= s.chineZ) return s.chineY
-  const t = (a - s.chineZ) / (s.sheerZ - s.chineZ)
+  const t = Math.min(1, (a - s.chineZ) / (s.sheerZ - s.chineZ))
   return s.chineY + t * (s.sheerY - s.chineY)
+}
+
+/**
+ * Half-breadth of the hull at a longitudinal position, at the sheer.
+ *
+ * A transverse offset greater than this is outside the boat.
+ */
+export function hullHalfBreadthAt(form: HullForm, u: number): number {
+  return stationAt(form, u).sheerZ
+}
+
+/**
+ * The last longitudinal position at which the hull is still at least `z` wide.
+ *
+ * The profile is truncated here, because past this point the cut plane is in open
+ * water and there is no interior to draw.
+ */
+export function cutPlaneLeavesHullAt(form: HullForm, z: number): number {
+  const steps = 400
+  let last = 0
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps
+    if (hullHalfBreadthAt(form, u) >= z) last = u
+  }
+  return -form.principal.loa / 2 + last * form.principal.loa
 }
 
 /** Height of the sheer (deck edge) at a longitudinal position. */

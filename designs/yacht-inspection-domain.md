@@ -436,7 +436,42 @@ competitor, our channel, and our first design partner.*
 
 ---
 
-## 13. Relationship to the other work
+## 13. Where this lives
+
+| | |
+|---|---|
+| `src/sim/world/yacht-form.ts` | Parametric hull. Keel lift, beam plan, freeboard, deadrise, chine ratio over eleven stations. The section is keel + chine + sheer. |
+| `src/sim/world/yacht.ts` | Regions, hatches, the access graph, and the person/crawler reachability sets. |
+| `src/sim/world/yacht-content.ts` | The single load path for the content, shared by the diagnostic and the browser. |
+| `src/content/yacht-01.json` | The vessel. Every assumption marked. |
+| `src/view/hull.ts` | Hull geometry: shell, plating at the cut plane, profile curve, sheer line. |
+| `src/view/yacht-scene.ts` | The scene. Ghost hull, void volumes, access rings, fault beacons with drop lines to the plating. |
+| `src/view/yacht-main.ts` | Entry point, panel, camera. |
+| `index-yacht.html` | The page. `npm run dev`, then `/index-yacht.html`. |
+| `scripts/diag-yacht-form.ts` | The ASCII inboard profile, the access graph, the sensitivity sweep, and the content-defect pass. `npm run diag:yacht`. |
+| `test/world/yacht-domain.test.ts` | 18 tests. |
+
+**The scene and the diagnostic read the same content through the same module**, so
+the picture on screen and the profile in the terminal are the same boat. A
+diagnostic that reads the file and a scene that imports it can drift, and the drift
+is invisible until somebody puts the two side by side.
+
+**Two bugs the render found that the diagnostic did not**, both of the same class as
+the ones already in this project:
+
+- the topside parameter was extrapolated past 1 when the cut plane was outboard of
+  the sheer, and the profile came out **13.44 m tall on a boat whose sheer is
+  4.16 m**. The cut plane leaves the hull forward of the forefoot, and the function
+  extrapolated instead of saying so.
+- the plating was filled down to the baseline, which on a deep-V hull is most of
+  the frame. The space under the hull is sea, not plating.
+
+Both are now tests. A geometry bug that only shows up in a render is a bug that
+survives until somebody looks at the render.
+
+---
+
+## 14. Relationship to the other work
 
 The same instrument, three domains:
 

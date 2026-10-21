@@ -30,26 +30,23 @@
  * Run: `npm run diag:yacht`
  */
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
-  loadYacht01,
   profileArea,
   totalProfileArea,
   reachableProfileArea,
   voidReachabilitySweep,
 } from '../src/sim/world/yacht.ts'
-import type { RawContent } from '../src/sim/world/yacht.ts'
+import { yacht as model } from '../src/sim/world/yacht-content.ts'
 import { hullBottomY, hullTopY, stationAt, uFromX } from '../src/sim/world/yacht-form.ts'
 
-const ROOT = process.cwd()
 const CUT_Z = 0.65
 
-const raw = JSON.parse(
-  readFileSync(join(ROOT, 'src', 'content', 'yacht-01.json'), 'utf8'),
-) as RawContent
+/**
+ * The content is loaded through `sim/world/yacht-content.ts`, the same module the
+ * browser scene imports, so the ASCII profile printed here and the picture on
+ * screen are the same boat.
+ */
 
-const model = loadYacht01(raw)
 const form = model.form
 
 const COLS = 132
