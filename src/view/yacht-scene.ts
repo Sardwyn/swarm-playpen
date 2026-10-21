@@ -229,10 +229,15 @@ class Trail {
       const d = Math.hypot(x - this.last.x, z - this.last.z)
       if (d < minStep) return
     }
-    this.last = { x, y, z }
-
-    // The direction of the new segment, and the normal to it in the ground
-    // plane. The normal is what makes the ribbon a ribbon.
+    // The direction of the new segment, measured from the PREVIOUS point, and
+    // the normal to it in the ground plane. The normal is what makes the ribbon
+    // a ribbon.
+    //
+    // The previous point has to be read before it is overwritten. It was not,
+    // and so every segment was computed as (x - x) and fell through to the
+    // fallback: every trail ran along the same axis regardless of where the
+    // machine had actually been. A trail that does not follow the machine is
+    // worse than no trail, because it looks like one.
     let dx = x - this.last.x
     let dz = z - this.last.z
     const len = Math.hypot(dx, dz)
@@ -243,6 +248,8 @@ class Trail {
       dx /= len
       dz /= len
     }
+    this.last = { x, y, z }
+
     const nx = -dz * this.width
     const nz = dx * this.width
 
@@ -775,8 +782,11 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     // The lock-on reticle: a ring and four ticks, scaled with distance so it
     // covers the same fraction of the screen wherever the robot is.
     const reticle = new THREE.Group()
+    // Flat on the ground. A ring is born in the XY plane, which means it stands
+    // up like a hoop; it has to be laid down or it reads as a vertical arch
+    // floating over the machine.
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.94, 1, 32),
+      new THREE.RingGeometry(0.94, 1, 32).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({
         color: colours[cls] ?? 0xffffff,
         transparent: true,
@@ -788,15 +798,16 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     )
     reticle.add(ring)
     for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      // A flat box rather than a plane, so it lies on the ground whatever
+      // its orientation.
       const tick = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.34, 0.05),
+        new THREE.BoxGeometry(0.34, 0.02, 0.05),
         new THREE.MeshBasicMaterial({
           color: colours[cls] ?? 0xffffff,
           transparent: true,
           opacity: 0.9,
           depthTest: false,
           depthWrite: false,
-          side: THREE.DoubleSide,
         }),
       )
       tick.position.set(Math.cos(a) * 1.18, 0, Math.sin(a) * 1.18)
@@ -810,18 +821,20 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     // light comes straight down.
     let cone: THREE.Mesh | null = null
     if (cls === 'ground') {
+      // The depth sensor's fan, spreading on the sole: three metres, which is
+      // the range the agent actually has.
       cone = new THREE.Mesh(
-        new THREE.ConeGeometry(1.25, 1.25, 24, 1, true).rotateX(Math.PI),
+        new THREE.ConeGeometry(3.0, 0.32, 32, 1, true),
         new THREE.MeshBasicMaterial({
           color: COLOURS.agentGround,
           transparent: true,
-          opacity: 0.07,
+          opacity: 0.06,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
           side: THREE.DoubleSide,
         }),
       )
-      cone.position.y = 0.62
+      cone.position.y = 0.06
     } else if (cls === 'hover') {
       cone = new THREE.Mesh(
         new THREE.ConeGeometry(0.9, 1.1, 24, 1, true),
@@ -851,7 +864,10 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       )
       cone.position.x = 0.34
     }
-    if (cone !== null) group.add(cone)
+    // The cone is a CHILD of the body, so it travels with the machine. Added
+    // to the scene it sat at the origin and never moved, which made the sensing
+    // footprint look like a stray glow in the middle of the boat.
+    if (cone !== null) body.add(cone)
 
     const trail = new Trail(colours[cls] ?? 0xffffff, cls === 'inchworm' ? 0.05 : 0.075, 900)
     group.add(trail.object)
@@ -1032,19 +1048,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
         v.reticle.visible = d > 0.8
       }
 
-      if (v.cone !== null) {
-        v.cone.position.set(0, v.cls === 'hover' ? -0.55 : v.cls === 'ground' ? 0.62 : 0, 0)
-        v.cone.rotation.set(0, 0, 0)
-        if (v.cls === 'hover') {
-          v.cone.position.set(0, -0.55, 0)
-          v.cone.rotation.x = Math.PI
-        } else if (v.cls === 'ground') {
-          v.cone.position.set(0, 0.62, 0)
-        } else {
-          v.cone.position.set(0.34, 0, 0)
-          v.cone.rotation.set(0, 0, -Math.PI / 2)
-        }
-      }
+
     }
 
     // -- the findings.
