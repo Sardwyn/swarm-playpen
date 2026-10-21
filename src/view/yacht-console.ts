@@ -325,10 +325,10 @@ export function buildConsole(root: HTMLElement, house: House): ConsoleElements {
     q('c-found').textContent = `${matched} / ${frame.truth.length}`
     // The faults nobody got. Not a count of "spaces the swarm cannot reach",
     // which is a different and much smaller number, and not the same thing.
-    const matchedIds = new Set(
-      frame.findings.map((f) => f.matchedAnomalyId).filter((id): id is string => id !== null),
-    )
-    q('c-miss').textContent = String(frame.truth.filter((t) => !matchedIds.has(t.id)).length)
+    //
+    // One finding matches at most one fault and one fault is matched at most
+    // once, so the difference is the count.
+    q('c-miss').textContent = String(Math.max(0, frame.truth.length - matched))
 
     // -- the agent cards.
     for (const a of frame.agents) {
