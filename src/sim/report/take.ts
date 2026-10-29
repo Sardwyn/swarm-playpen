@@ -32,6 +32,7 @@
  */
 
 import type { AgentFrame, JobFrame, RasterFrame, SimFrame, TruthFrame } from './frame.ts'
+import { worldPositionOf } from './frame.ts'
 import type { Finding, InspectionReport } from './report.ts'
 import type { AnomalySet } from '../world/anomalies.ts'
 import { buildReport } from './report.ts'
@@ -294,14 +295,17 @@ function reportFindings(run: SimRun): Finding[] {
 function agentsOf(run: SimRun): AgentFrame[] {
   return run.agents.map((a) => {
     const job = a.currentJobId === null ? undefined : run.jobs.get(a.currentJobId)
-    const p = a.pose as { x?: number; z?: number; y?: number; theta?: number }
+    // The crawler's pose is `(conduit, arc)`, so it has to go through the same
+    // projection as everything else. Casting it here is what drew the inchworm
+    // at the origin for the whole run.
+    const p = worldPositionOf(run, a)
     return {
       id: a.spec.id,
       cls: a.spec.cls,
-      x: p.x ?? 0,
-      y: p.y ?? 0,
-      z: p.z ?? 0,
-      heading: p.theta ?? 0,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      heading: p.heading,
       battery: a.battery,
       currentJobId: a.currentJobId,
       currentJobType: job?.job.type ?? null,

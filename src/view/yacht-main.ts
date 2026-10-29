@@ -46,12 +46,12 @@ import {
   YACHT_INCHWORM_HOME,
 } from '../sim/world/yacht-sim.ts'
 import { buildYachtScene } from './yacht-scene.ts'
+import type { Fitting, PipeRun, PortOpening } from './yacht-fittings.ts'
 import type { SpaceDef } from './yacht-scene.ts'
 import { buildConsole } from './yacht-console.ts'
-import { CameraDirector } from './yacht-director.ts'
+import { CameraDirector, CUT_Z } from './yacht-director.ts'
 import { OrbitShim } from './viewer.ts'
 
-const CUT_Z = 0.65
 const SEED = 1
 const NOISE = 1
 const MISSION_SECONDS = 300
@@ -139,23 +139,46 @@ try {
   renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
   renderer.setSize(stage.clientWidth, stage.clientHeight)
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.3
+  if ((renderer as any).outputColorSpace !== undefined) {
+    (renderer as any).outputColorSpace = THREE.SRGBColorSpace
+  }
   stage.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x07090c)
-  scene.fog = new THREE.Fog(0x07090c, 40, 150)
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35))
-  const key = new THREE.DirectionalLight(0xc9d1d9, 0.6)
-  key.position.set(16, 22, 14)
+  scene.background = new THREE.Color(0x0a1525)
+  scene.fog = new THREE.Fog(0x0a1525, 40, 200)
+  scene.add(new THREE.AmbientLight(0x7c8ca0, 0.6))
+  const key = new THREE.DirectionalLight(0xe6f1ff, 1.4)
+  key.position.set(30, 40, 25)
   scene.add(key)
-  const rim = new THREE.DirectionalLight(0x4fd1c5, 0.6)
-  rim.position.set(-18, 8, -16)
+  const rim = new THREE.DirectionalLight(0x4d9bff, 0.6)
+  rim.position.set(-40, 20, -30)
   scene.add(rim)
-  const engineLight = new THREE.PointLight(0xffb454, 3.2, 10, 2)
-  engineLight.position.set(-5.4, 0.6, CUT_Z)
+  const engineLight = new THREE.PointLight(0xffaa44, 3.0, 12, 2)
+  engineLight.position.set(-5.4, 1.2, CUT_Z)
   scene.add(engineLight)
 
-  yacht = buildYachtScene({ form: yachtForm, spaces, cutZ: CUT_Z })
+  const fittings: Fitting[] = yachtHouse.obstacles.map((o) => ({
+    id: o.id,
+    material: o.material,
+    aabb: o.aabb,
+  }))
+  const pipes: PipeRun[] = yachtHouse.conduits.map((c) => ({
+    id: c.id,
+    name: c.name,
+    bore: c.bore,
+    points: c.points,
+    kind: c.id.startsWith('exhaust') ? 'exhaust' : c.id.startsWith('coolant') ? 'coolant' : 'fuel',
+  }))
+  const ports: PortOpening[] = yachtHouse.ports.map((p) => ({
+    id: p.id,
+    position: p.position,
+    radius: p.radius,
+    kind: p.kind ?? 'unknown',
+  }))
+  yacht = buildYachtScene({ form: yachtForm, spaces, fittings, pipes, ports, cutZ: CUT_Z })
   scene.add(yacht.group)
 
   camera = new THREE.PerspectiveCamera(42, stage.clientWidth / stage.clientHeight, 0.03, 500)
@@ -227,6 +250,7 @@ const consoleUi = buildConsole(consoleRoot, yachtHouse)
 function showAt(index: number): void {
   playhead = Math.max(0, Math.min(take.frames.length - 1, index))
   const frame = frameAt(take, playhead)
+  lastShownFrame = frame
   if (yacht !== null) yacht.setFrame(frame, performance.now() / 1000)
   const floor = Math.floor(playhead)
   if (floor !== lastFrameIndex) {
@@ -272,12 +296,15 @@ function updateTags(frame: ReturnType<typeof frameAt>): void {
     const behind = projected.z > 1
     const x = (projected.x * 0.5 + 0.5) * stage.clientWidth
     const y = (-projected.y * 0.5 + 0.5) * stage.clientHeight
-    tag.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
+    tag.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-8px, -130%)`
     tag.style.display = behind ? 'none' : 'flex'
     const span = tag.querySelector('span') as HTMLElement
-    span.textContent = `${a.currentJobType !== null ? a.currentJobType.replace(/_/g, ' ') : 'idle'} · ${(
-      a.battery * 100
-    ).toFixed(0)}%`
+    const doing = a.faulted
+      ? 'FAULTED'
+      : a.currentJobType !== null
+        ? a.currentJobType.replace(/_/g, ' ')
+        : 'working'
+    span.textContent = `${doing} · ${(a.battery * 100).toFixed(0)}%`
     if (a.faulted) tag.classList.add('bad')
     else tag.classList.remove('bad')
   }
@@ -397,6 +424,15 @@ function renderPanel(): void {
 }
 
 // --------------------------------------------------------------------- loop
+/**
+ * Whether the render loop is drawing.
+ *
+ * The headless render probe turns this off: with software GL, a continuous
+ * bloom pass at full resolution is slow enough to starve the main thread, and
+ * a probe that has to wait for a frame is a probe that times out.
+ */
+let liveRender = true
+
 function loop(now: number): void {
   const dt = lastTime === 0 ? 0 : (now - lastTime) / 1000
   lastTime = now
@@ -415,6 +451,9 @@ function loop(now: number): void {
     orbit.yaw = state.yaw
     orbit.pitch = state.pitch
     orbit.distance = state.distance
+    // A shot inside a compartment keeps the camera inside it.
+    orbit.confine = state.confine
+    orbit.minDistance = state.minDistance
     if (Math.abs(camera.fov - state.fov) > 0.01) {
       camera.fov = state.fov
       camera.updateProjectionMatrix()
@@ -422,7 +461,7 @@ function loop(now: number): void {
   }
 
   orbit?.update()
-  composer?.render()
+  if (liveRender) composer?.render()
   requestAnimationFrame(loop)
 }
 
@@ -437,6 +476,14 @@ function resize(): void {
 }
 window.addEventListener('resize', resize)
 
+/**
+ * The last frame that was shown.
+ *
+ * Kept so that a headless render probe can ask where the machines are on
+ * screen without having to reconstruct the playhead.
+ */
+let lastShownFrame: ReturnType<typeof frameAt> | null = null
+
 Object.assign(window as unknown as Record<string, unknown>, {
   __yacht: {
     run,
@@ -447,6 +494,114 @@ Object.assign(window as unknown as Record<string, unknown>, {
     },
     get scene() {
       return yacht?.group
+    },
+    get camera() {
+      return camera
+    },
+    get frame() {
+      return lastShownFrame
+    },
+    /** Freeze the playhead, leaving the camera on its rails. */
+    pause: () => {
+      playing = false
+    },
+    /** Stop the render loop drawing, and draw one frame on demand instead. */
+    freeze: (on: boolean) => {
+      liveRender = !on
+    },
+    /** Draw one frame and return the picture, downsampled. */
+    snapshot: (w: number, h: number): number[] => {
+      const canvas = renderer?.domElement
+      if (canvas === undefined) return []
+      orbit?.update()
+      composer?.render()
+      const off = document.createElement('canvas')
+      off.width = w
+      off.height = h
+      const ctx = off.getContext('2d')
+      if (ctx === null) return []
+      ctx.drawImage(canvas, 0, 0, w, h)
+      return [...ctx.getImageData(0, 0, w, h).data]
+    },
+    /** Where a world point lands on the stage, in per cent. */
+    project(x: number, y: number, z: number): { sx: number; sy: number; behind: boolean } {
+      if (camera === null) return { sx: -1, sy: -1, behind: true }
+      const v = new THREE.Vector3(x, y, z).project(camera)
+      return {
+        sx: (v.x * 0.5 + 0.5) * 100,
+        sy: (-v.y * 0.5 + 0.5) * 100,
+        behind: v.z > 1,
+      }
+    },
+    /** Where the camera is, what it is looking at, and which shot it is on. */
+    shotState(): unknown {
+      const t = playhead / Math.max(1, (take?.frames.length ?? 2) - 1)
+      const shot = director.shotAt(t)
+      return {
+        t: +t.toFixed(3),
+        shot: shot.name,
+        camera:
+          camera === null
+            ? null
+            : [+camera.position.x.toFixed(2), +camera.position.y.toFixed(2), +camera.position.z.toFixed(2)],
+        target:
+          orbit === null
+            ? null
+            : [+orbit.target.x.toFixed(2), +orbit.target.y.toFixed(2), +orbit.target.z.toFixed(2)],
+        confine: orbit?.confine ?? null,
+      }
+    },
+    /**
+     * What the camera is actually looking at.
+     *
+     * Five rays: the middle of the frame and the four corners of the middle
+     * half. For each, the first thing the ray meets, with the distance, the
+     * material colour and the name of the object it belongs to. This is how
+     * the picture can be reasoned about without being able to see it.
+     */
+    probeRays(): unknown[] {
+      if (camera === null || yacht === null) return []
+      const ray = new THREE.Raycaster()
+      // The default line threshold is a whole world unit, which makes every
+      // wireframe in the scene report a hit at distance zero.
+      ray.params.Line.threshold = 0.005
+      ray.params.Points.threshold = 0.005
+      const out: unknown[] = []
+      const spots: [string, number, number][] = [
+        ['centre', 0, 0],
+        ['upper-left', -0.4, 0.4],
+        ['upper-right', 0.4, 0.4],
+        ['lower-left', -0.4, -0.4],
+        ['lower-right', 0.4, -0.4],
+      ]
+      for (const [label, u, v] of spots) {
+        ray.setFromCamera(new THREE.Vector2(u, v), camera)
+        const hits = ray.intersectObjects(yacht.group.children, true)
+        const hit = hits.find((h) => (h.object as THREE.Mesh).isMesh === true)
+        if (hit === undefined) {
+          out.push({ label, hit: null })
+          continue
+        }
+        let owner = hit.object
+        while (owner.parent !== null && owner.name === '') owner = owner.parent
+        const mat = (hit.object as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined
+        out.push({
+          label,
+          name: owner.name,
+          distance: +hit.distance.toFixed(3),
+          colour: mat !== undefined && mat.color !== undefined ? `#${mat.color.getHexString()}` : '-',
+          point: [+hit.point.x.toFixed(2), +hit.point.y.toFixed(2), +hit.point.z.toFixed(2)],
+        })
+      }
+      out.push({
+        camera: [
+          +camera.position.x.toFixed(2),
+          +camera.position.y.toFixed(2),
+          +camera.position.z.toFixed(2),
+        ],
+        fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : null,
+      })
+      return out
     },
   },
 })

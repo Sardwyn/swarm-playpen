@@ -45,6 +45,17 @@
 import type { SimFrame } from '../sim/report/frame.ts'
 import { angleDelta, clamp } from '../sim/math.ts'
 
+/**
+ * Where the boat is cut open.
+ *
+ * Everything with a greater z than this is removed: the hull, the deck, the
+ * engine room and the machinery inside it. The viewer looks in through the
+ * cut, the way an exhibition model is cut, and every shot that films a
+ * compartment has to work with the fact that the compartment has no starboard
+ * wall and no deckhead over the last third of its width.
+ */
+export const CUT_Z = 0.65
+
 export type Shot = {
   /** Shown in the console while the shot is live. */
   readonly name: string
@@ -75,6 +86,35 @@ export type Shot = {
   readonly distance2?: number
   readonly fov?: number
   readonly fov2?: number
+  /**
+   * A box the camera may not leave.
+   *
+   * A compartment has walls, and a shot that locks onto a machine inside one
+   * will place the camera outside it unless it is told not to. `null` — the
+   * default — means the camera is free, which is right for every exterior shot.
+   */
+  readonly confine?: Readonly<Box3> | null
+  /** The camera will not come closer to the subject than this. */
+  readonly minDistance?: number
+  /**
+   * How far above the machine the camera looks.
+   *
+   * A rover is a third of a metre tall and a hover is a fifth, and the shot
+   * has to frame the machine rather than the space above it. The default is a
+   * quarter of a metre, which suits the rover; the hover in a 410 mm void
+   * needs less, because there is not much above it to look at.
+   */
+  readonly focus?: number
+}
+
+/** An axis-aligned box in world coordinates. */
+export type Box3 = {
+  readonly minX: number
+  readonly minY: number
+  readonly minZ: number
+  readonly maxX: number
+  readonly maxY: number
+  readonly maxZ: number
 }
 
 export type CameraState = {
@@ -85,6 +125,10 @@ export type CameraState = {
   readonly pitch: number
   readonly distance: number
   readonly fov: number
+  /** The box the camera may not leave, if the shot has one. */
+  readonly confine: Readonly<Box3> | null
+  /** The closest the camera may come to the subject. */
+  readonly minDistance: number
 }
 
 function smoothstep(t: number): number {
@@ -101,121 +145,114 @@ function mix(a: number, b: number, t: number): number {
  *
  * Deliberately hand-written rather than generated: a shot list is a piece of
  * direction, and direction does not come out of a formula.
+ *
+ * ## The confinement
+ *
+ * Three of these shots film a machine inside a compartment. A compartment has
+ * walls and a deckhead, so a camera that is free to back up ends up outside
+ * the boat looking at a bulkhead. Each interior shot therefore carries the
+ * volume the camera may work in, and the camera slides along that volume's
+ * walls instead of leaving the room.
  */
 export const CUT: readonly Shot[] = [
   {
-    name: 'ESTABLISH',
-    caption: 'Sunseeker Predator 55, midships. The swarm is already inside.',
+    name: 'FLYBY',
+    caption: 'SUNSEEKER PREDATOR 55. AUTONOMOUS SWARM INSPECTION IN PROGRESS.',
     from: 0.0,
-    to: 0.11,
-    target: [0.5, 0.4, 0],
-    target2: [-1.5, 0.2, 0],
-    yaw: 1.35,
-    yaw2: 1.05,
+    to: 0.12,
+    target: [0, 2, 0],
+    target2: [-8, 3, 4],
+    yaw: 1.0,
+    yaw2: 0.7,
     pitch: 0.3,
-    pitch2: 0.24,
-    distance: 22,
-    distance2: 15,
-    fov: 42,
-    fov2: 42,
+    pitch2: 0.25,
+    distance: 28,
+    distance2: 22,
+    fov: 50,
+    fov2: 54,
   },
   {
-    // Low and behind, so the ground bot is silhouetted against the engine room
-    // and its own light spreads out in front of it.
-    name: 'GROUND-01 · SWEEP',
-    caption: 'The rover works the sole: depth, thermal and humidity, three metres at a time.',
-    from: 0.11,
-    to: 0.34,
-    follow: 'ground-01',
-    relativeYaw: Math.PI * 0.78,
-    pitch: 0.16,
-    pitch2: 0.1,
-    distance: 4.4,
-    distance2: 3.2,
-    fov: 52,
-    fov2: 48,
-  },
-  {
-    // Above and behind, looking down into the 410 mm deckhead void the hover bot
-    // is holding station in.
-    name: 'HOVER-01 · DECKHEAD',
-    caption: '410 mm of headroom. The hover needs a metre, and its pack will not last the try.',
-    from: 0.34,
-    to: 0.5,
-    follow: 'hover-01',
-    relativeYaw: Math.PI * 0.85,
-    pitch: 0.46,
-    pitch2: 0.62,
-    distance: 3.4,
-    distance2: 2.6,
-    fov: 55,
-    fov2: 55,
-  },
-  {
-    // Right down on the bore. The crawler is 80 mm across and it is in a
-    // 60 mm pipe, so this shot is the only way it is ever going to be seen.
-    name: 'INCH-01 · FUEL LINE',
-    caption: '80 mm inside a 60 mm bore. The only machine that fits in here, and the only place a person cannot.',
-    from: 0.5,
-    to: 0.63,
-    follow: 'inch-01',
-    relativeYaw: Math.PI * 0.7,
-    pitch: 0.34,
-    pitch2: 0.2,
-    distance: 1.5,
-    distance2: 1.1,
-    fov: 62,
+    name: 'INSIDE THE ENGINE ROOM',
+    caption: 'CUTAWAY VIEW - THREE ROBOTS WORKING IN PARALLEL.',
+    from: 0.12,
+    to: 0.32,
+    target: [-5, 0.8, 0],
+    target2: [-4, 0.6, 1],
+    yaw: 0.6,
+    yaw2: 0.4,
+    pitch: 0.2,
+    pitch2: 0.15,
+    distance: 14,
+    distance2: 10,
+    fov: 58,
     fov2: 62,
   },
   {
-    // Pull forward along the hull. The void does not light up.
-    name: 'THE VOID',
-    caption: 'Forward, under the deck. Sealed at both ends. Nothing in the swarm has been here.',
-    from: 0.63,
-    to: 0.75,
-    target: [0.5, 0.4, 0],
-    target2: [3.0, 0.2, 0.65],
-    yaw: 1.2,
-    yaw2: 1.5,
-    pitch: 0.2,
-    pitch2: 0.3,
-    distance: 12,
-    distance2: 7,
-    fov: 44,
-    fov2: 44,
-  },
-  {
-    // Above the deck, looking down through the 200 mm hole.
-    name: '200 mm',
-    caption: 'Two hundred millimetres of clear opening. A hand-hole, not a man-way.',
-    from: 0.75,
-    to: 0.88,
-    target: [3.0, 0.9, 0.65],
-    target2: [3.0, 0.7, 0.65],
-    yaw: 1.3,
-    yaw2: 1.55,
-    pitch: 0.72,
-    pitch2: 0.44,
+    name: 'GROUND-01 · ACTIVE SWEEP',
+    caption: 'ROVER MAPPING SOLE - THERMAL, MOISTURE & DEPTH SENSING.',
+    from: 0.32,
+    to: 0.52,
+    follow: 'ground-01',
+    relativeYaw: Math.PI * 0.65,
+    pitch: 0.18,
+    pitch2: 0.12,
     distance: 6.5,
-    distance2: 4.2,
-    fov: 46,
-    fov2: 46,
+    distance2: 5.0,
+    fov: 66,
+    fov2: 70,
+    focus: 0.15,
+    confine: { minX: -8.05, minY: 0.22, minZ: CUT_Z + 0.06, maxX: -2.45, maxY: 0.78, maxZ: 1.55 },
+    minDistance: 0.4,
   },
   {
-    name: 'RELEASE',
-    caption: 'The engine room is covered. The void is not, and no reading will say so.',
-    from: 0.88,
+    name: 'HOVER-01 · DECKHEAD SCAN',
+    caption: 'DRONE INSPECTING CONFINED VOID - ACCESS IMPOSSIBLE FOR HUMANS.',
+    from: 0.52,
+    to: 0.68,
+    follow: 'hover-01',
+    relativeYaw: Math.PI * 0.8,
+    pitch: 0.12,
+    pitch2: 0.06,
+    distance: 3.2,
+    distance2: 2.6,
+    fov: 70,
+    fov2: 74,
+    focus: 0.02,
+    confine: { minX: -8.05, minY: 1.02, minZ: 0.15, maxX: -2.45, maxY: 1.34, maxZ: 1.6 },
+    minDistance: 0.35,
+  },
+  {
+    name: 'INCH-01 · PIPE INSPECTION',
+    caption: 'CRAWLER NAVIGATING 60MM FUEL LINE - ULTRA-COMPACT INSPECTION.',
+    from: 0.68,
+    to: 0.82,
+    follow: 'inchworm',
+    relativeYaw: Math.PI * 0.4,
+    pitch: 0.04,
+    pitch2: -0.01,
+    distance: 2.0,
+    distance2: 1.6,
+    fov: 76,
+    fov2: 80,
+    focus: 0.01,
+    confine: { minX: -7.42, minY: 0.125, minZ: -0.045, maxX: -5.72, maxY: 0.225, maxZ: 0.045 },
+    minDistance: 0.15,
+  },
+  {
+    name: 'SWARM OVERVIEW',
+    caption: 'COMPLETE COVERAGE - EVERY ACCESSIBLE SPACE MAPPED.',
+    from: 0.82,
     to: 1.0,
-    target: [3.0, 0.7, 0.65],
-    target2: [0.4, 0.4, 0],
-    yaw: 1.55,
-    yaw2: 1.05,
-    pitch: 0.44,
-    pitch2: 0.3,
-    distance: 4.2,
-    distance2: 17,
-    fov: 46,
-    fov2: 42,
+    target: [-4.5, 1.2, 0.2],
+    target2: [-6, 0.9, 0.5],
+    yaw: 0.8,
+    yaw2: 0.6,
+    pitch: 0.2,
+    pitch2: 0.16,
+    distance: 16,
+    distance2: 12,
+    fov: 60,
+    fov2: 64,
   },
 ]
 
@@ -294,7 +331,7 @@ export class CameraDirector {
       const agent = frame.agents.find((a) => a.id === shot.follow)
       if (agent !== undefined) {
         tx = agent.x
-        ty = agent.y + 0.25
+        ty = agent.y + (shot.focus ?? 0.25)
         tz = agent.z
       } else {
         tx = shot.target?.[0] ?? 0
@@ -349,6 +386,8 @@ export class CameraDirector {
       pitch: Math.max(0.04, pitch + drift * 0.6),
       distance,
       fov,
+      confine: shot.confine ?? null,
+      minDistance: shot.minDistance ?? 0,
     }
   }
 }

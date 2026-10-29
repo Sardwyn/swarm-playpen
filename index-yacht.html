@@ -47,19 +47,19 @@
       #tags { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
       .lock {
         position: absolute; top: 0; left: 0;
-        transform: translate(-50%, -50%);
-        display: none; align-items: center; gap: 7px;
-        padding: 3px 8px;
-        background: rgba(5, 9, 13, 0.72);
+        display: none; flex-direction: column; align-items: flex-start; gap: 2px;
+        padding: 5px 9px 6px;
+        background: rgba(5, 9, 13, 0.86);
         border: 1px solid var(--line-hot);
-        border-left: 2px solid var(--teal);
+        border-left: 3px solid var(--teal);
         white-space: nowrap;
-        font-size: 10px;
+        font-size: 11px;
         color: var(--text-hot);
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.45);
       }
-      .lock b { font-weight: 600; color: var(--teal); }
-      .lock span { color: var(--text-dim); letter-spacing: 0.04em; }
+      .lock b { font-weight: 600; color: var(--teal); letter-spacing: 0.14em; font-size: 10px; }
+      .lock span { color: var(--text-hot); letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; }
       .lock.bad { border-left-color: var(--red); }
       .lock.bad b { color: var(--red); }
 

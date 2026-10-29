@@ -34,6 +34,8 @@ import type { SimFrame } from '../sim/report/frame.ts'
 import { buildHullGeometry } from './hull.ts'
 import { hullBottomYSim } from '../sim/world/yacht-form.ts'
 import type { HullForm } from '../sim/world/yacht-form.ts'
+import { addEngineRoom, addVoidWalls, diamondPlateTexture } from './yacht-fittings.ts'
+import type { Fitting, PipeRun, PortOpening } from './yacht-fittings.ts'
 
 const COLOURS = {
   bg: 0x07090c,
@@ -70,6 +72,9 @@ export type SpaceDef = {
 export type YachtSceneOptions = {
   readonly form: HullForm
   readonly spaces: readonly SpaceDef[]
+  readonly fittings: readonly Fitting[]
+  readonly pipes: readonly PipeRun[]
+  readonly ports: readonly PortOpening[]
   readonly cutZ: number
 }
 
@@ -458,8 +463,76 @@ function buildSpaceGeometry(def: SpaceDef, form: HullForm, cutZ: number): THREE.
 
 // ---------------------------------------------------------------- the scene
 
+/** A three-line plate: who, what they are doing, and what is left in the pack. */
+function makePlate(title: string, line: string, colour: number, third?: string): THREE.Sprite {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  const font = '600 32px ui-monospace, Menlo, Consolas, monospace'
+  const small = '500 26px ui-monospace, Menlo, Consolas, monospace'
+  ctx.font = font
+  const w = Math.max(ctx.measureText(title).width, ctx.measureText(line).width) + 30
+  const height = third === undefined ? 78 : 104
+  canvas.width = Math.ceil(w)
+  canvas.height = height
+  const c = canvas.getContext('2d')!
+  c.font = font
+  c.fillStyle = 'rgba(6,9,13,0.82)'
+  c.fillRect(0, 0, canvas.width, height)
+  c.fillStyle = `#${colour.toString(16).padStart(6, '0')}`
+  c.fillRect(0, 0, 5, height)
+  c.fillText(title, 16, 32)
+  c.font = small
+  c.fillStyle = '#e6edf3'
+  c.fillText(line, 16, 62)
+  if (third !== undefined) {
+    c.font = '500 22px ui-monospace, Menlo, Consolas, monospace'
+    c.fillStyle = '#7d8f9c'
+    c.fillText(third, 16, 90)
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      sizeAttenuation: false,
+    }),
+  )
+  const h = 0.055
+  sprite.scale.set(h * (canvas.width / height), h, 1)
+  sprite.renderOrder = 15
+  return sprite
+}
+
+/**
+ * What the machine is doing, in words.
+ *
+ * The job types are the simulation's names for things; these are the same
+ * names a person would use. The rule that governs every other number on the
+ * screen — nothing appears here that the run did not produce — holds here
+ * too: this string is a reading of the machine's current job, not a caption.
+ */
+function activityOf(agent: { faulted: boolean; currentJobType: string | null }): string {
+  if (agent.faulted) return 'FAULTED — pack exhausted'
+  switch (agent.currentJobType) {
+    case 'map_region':
+      return 'mapping the sole'
+    case 'verify_thermal':
+      return 'thermal check'
+    case 'verify_moisture':
+      return 'moisture check'
+    case 'scan_pipe':
+      return 'crawling the bore'
+    case 'scan_ceiling':
+      return 'scanning the deckhead'
+    default:
+      return 'working the compartment'
+  }
+}
+
 export function buildYachtScene(options: YachtSceneOptions): YachtScene {
-  const { form, spaces, cutZ } = options
+  const { form, spaces, fittings, pipes, ports, cutZ } = options
   const group = new THREE.Group()
   const disposables: { dispose: () => void }[] = []
   const track = <T extends { dispose: () => void }>(x: T): T => {
@@ -476,16 +549,17 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   const shell = new THREE.Mesh(
     track(hull.shell),
     new THREE.MeshPhongMaterial({
-      color: COLOURS.hull,
+      color: 0x1a2332,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.45,
       side: THREE.DoubleSide,
       depthWrite: false,
-      shininess: 90,
-      specular: 0x4fd1c5,
+      shininess: 80,
+      specular: 0x5a7a9a,
     }),
   )
   group.add(shell)
+  shell.name = 'hull-shell'
   group.add(
     new THREE.LineSegments(
       track(new THREE.WireframeGeometry(hull.shell)),
@@ -517,17 +591,39 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   )
 
   // ----------------------------------------------------------------- the sea
+  // Dark, and dark on purpose. The water is the backdrop; the moment it is
+  // brighter than the lit compartment it becomes the subject of the picture,
+  // and the subject of the picture is the swarm.
   const sea = new THREE.Mesh(
     track(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2)),
     new THREE.MeshBasicMaterial({
-      color: 0x06121a,
+      color: 0x0a1525,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.95,
       depthWrite: false,
     }),
   )
   sea.position.y = form.principal.draft - form.baselineOffsetM
+  sea.name = 'sea'
   group.add(sea)
+
+  // The room and the machinery. This is what makes the compartment a room.
+  const room = spaces.find((s) => s.kind === 'room')
+  if (room !== undefined) {
+    addEngineRoom(group, {
+      room: room.aabb,
+      fittings,
+      pipes,
+      ports,
+      cutZ,
+    })
+  }
+  addVoidWalls(
+    group,
+    spaces.filter((s) => s.kind === 'void').map((s) => ({ id: s.id, aabb: s.aabb })),
+    fittings,
+    cutZ,
+  )
 
   // ----------------------------------------------------------------- the spaces
   const spaceVisuals = new Map<
@@ -544,21 +640,33 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
 
   for (const s of spaces) {
     const geometry = track(buildSpaceGeometry(s, form, cutZ))
+    // A room is drawn as a room: it has bulkheads, a sole, a deckhead and
+    // machinery in it. A translucent box over the top of that is a veil, and
+    // a veil over the whole frame is the difference between a diagram and a
+    // picture. The voids get their volume because the void *is* the point —
+    // it is a space nobody is in, and it has to look like one.
+    const isRoom = s.kind === 'room'
     const mesh = new THREE.Mesh(
       geometry,
       new THREE.MeshBasicMaterial({
         color: COLOURS.void,
         transparent: true,
-        opacity: 0.07,
+        opacity: isRoom ? 0 : 0.045,
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
     )
     group.add(mesh)
+    mesh.name = `space:${s.id}`
     const edges = new THREE.LineSegments(
       track(new THREE.EdgesGeometry(geometry)),
-      new THREE.LineBasicMaterial({ color: COLOURS.void, transparent: true, opacity: 0.85 }),
+      new THREE.LineBasicMaterial({
+        color: COLOURS.void,
+        transparent: true,
+        opacity: isRoom ? 0.22 : 0.8,
+      }),
     )
+    edges.name = `space-edges:${s.id}`
     group.add(edges)
     const label = makeLabel(s.name, COLOURS.void, 0.42)
     label.position.set(
@@ -571,21 +679,27 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   }
 
   // ----------------------------------------------------------------- the deck
+  //
+  // The deck is a real surface, not a pane of glass: it is the lid over the
+  // deckhead void, and without it the void has no top and the space reads as
+  // a hole in the boat rather than as a slot between two decks.
+  //
+  // It is cut at the same plane as everything else, so the starboard half of
+  // the boat is open and the viewer is looking into a boat that has been
+  // opened up, not into a boat that is missing a piece.
   const DECK_Y0 = 1.36
   const DECK_Y1 = 1.46
   const hatchXs = [2.8, 3.2, 5.7, 6.1] as const
   const slotZ0 = 0.55
   const slotZ1 = 0.75
-  const deckMinX = 1.2
-  const deckMaxX = 6.5
   const deckHalfZ = 2.465
 
-  const deckMaterial = new THREE.MeshBasicMaterial({
-    color: 0x4a5a6b,
-    transparent: true,
-    opacity: 0.09,
-    side: THREE.DoubleSide,
-    depthWrite: false,
+  const deckTexture = diamondPlateTexture(10, 4)
+  const deckMaterial = new THREE.MeshPhongMaterial({
+    color: 0x5a616d,
+    map: deckTexture,
+    shininess: 10,
+    specular: 0x141b23,
   })
   const deckPanel = (
     minX: number,
@@ -593,27 +707,39 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     minZ: number,
     maxZ: number,
   ): void => {
-    const geometry = track(new THREE.BoxGeometry(maxX - minX, DECK_Y1 - DECK_Y0, maxZ - minZ))
-    geometry.translate((minX + maxX) / 2, (DECK_Y0 + DECK_Y1) / 2, (minZ + maxZ) / 2)
-    group.add(new THREE.Mesh(geometry, deckMaterial))
+    const z0 = minZ
+    const z1 = Math.min(maxZ, cutZ)
+    if (z1 <= z0 || maxX <= minX) return
+    const geometry = track(new THREE.BoxGeometry(maxX - minX, DECK_Y1 - DECK_Y0, z1 - z0))
+    geometry.translate((minX + maxX) / 2, (DECK_Y0 + DECK_Y1) / 2, (z0 + z1) / 2)
+    const mesh = new THREE.Mesh(geometry, deckMaterial)
+    mesh.name = 'deck'
+    group.add(mesh)
   }
-  deckPanel(deckMinX, deckMaxX, -deckHalfZ, slotZ0)
-  deckPanel(deckMinX, deckMaxX, slotZ1, deckHalfZ)
-  deckPanel(deckMinX, hatchXs[0], slotZ0, slotZ1)
+  // The engine room's deck, the cockpit's, and the foredeck.
+  deckPanel(-8.57, -2.4, -deckHalfZ, deckHalfZ)
+  deckPanel(-2.4, 1.2, -deckHalfZ, deckHalfZ)
+  deckPanel(1.2, 6.5, -deckHalfZ, slotZ0)
+  deckPanel(1.2, 6.5, slotZ1, deckHalfZ)
+  deckPanel(1.2, hatchXs[0], slotZ0, slotZ1)
   deckPanel(hatchXs[1], hatchXs[2], slotZ0, slotZ1)
-  deckPanel(hatchXs[3], deckMaxX, slotZ0, slotZ1)
+  deckPanel(hatchXs[3], 6.5, slotZ0, slotZ1)
+  deckPanel(6.5, 8.57, -deckHalfZ, deckHalfZ)
 
+  // The two hatches, cut open. Their clear width is the number the product
+  // turns on, so they are marked rather than left as a gap in a texture.
   for (const hx of [3.0, 5.9]) {
     const hole = new THREE.Mesh(
-      track(new THREE.BoxGeometry(0.4, DECK_Y1 - DECK_Y0, slotZ1 - slotZ0)),
+      track(new THREE.BoxGeometry(0.4, DECK_Y1 - DECK_Y0, Math.min(slotZ1, cutZ) - slotZ0)),
       new THREE.MeshBasicMaterial({
         color: COLOURS.voidUnreachable,
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.55,
         depthWrite: false,
       }),
     )
-    hole.position.set(hx, (DECK_Y0 + DECK_Y1) / 2, (slotZ0 + slotZ1) / 2)
+    hole.position.set(hx, (DECK_Y0 + DECK_Y1) / 2, (slotZ0 + Math.min(slotZ1, cutZ)) / 2)
+    hole.name = 'hatch'
     group.add(hole)
   }
 
@@ -641,6 +767,7 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   )
   coveragePoints.frustumCulled = false
   coveragePoints.renderOrder = 6
+  coveragePoints.name = 'coverage'
   group.add(coveragePoints)
 
   const volumetricGeometry = track(new THREE.BufferGeometry())
@@ -682,94 +809,271 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
     lastX: number
     lastY: number
     lastZ: number
+    activity: string
+    /** The last pack reading on the plate, so the texture is only rebuilt on a change. */
+    pack: string
   }
   const agentVisuals = new Map<string, AgentVisual>()
 
-  // -- ground-01: a 340 mm rover with a spinning lidar puck and a light fan.
+  // -- ground-01: a 340 mm rover.
+  //
+  // Drawn as a machine and not as a marker: a low anodised chassis on four
+  // wheels, a sensor bar across the nose, a lidar puck on a short mast, a
+  // gimballed camera on the flank, and a work lamp that throws a real pool of
+  // light onto the sole ahead of it. The lamp is the important part: it is
+  // what tells the viewer that this machine is *looking at something*.
   const groundBody = new THREE.Group()
-  const chassis = new THREE.Mesh(
-    new THREE.BoxGeometry(0.34, 0.09, 0.3),
-    new THREE.MeshBasicMaterial({ color: 0x16323a }),
-  )
-  chassis.position.y = 0.055
-  groundBody.add(chassis)
-  const beaconPost = new THREE.Mesh(
-    new THREE.BoxGeometry(0.05, 0.05, 0.05),
-    new THREE.MeshBasicMaterial({ color: COLOURS.agentGround }),
-  )
-  beaconPost.position.y = 0.125
-  groundBody.add(beaconPost)
-  for (const [dx, dz] of [
-    [-0.14, -0.12],
-    [0.14, -0.12],
-    [-0.14, 0.12],
-    [0.14, 0.12],
-  ] as const) {
-    const wheel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10).rotateZ(Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x0a0f14 }),
-    )
-    wheel.position.set(dx, 0.045, dz)
-    groundBody.add(wheel)
-  }
-  const lidar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.035, 0.03, 12),
-    new THREE.MeshBasicMaterial({ color: 0xa8fff0 }),
-  )
-  lidar.position.y = 0.17
-  groundBody.add(lidar)
+  const lidarSpin = new THREE.Group()
+  {
+    const metal = (colour: number, shininess = 60, specular = 0x506070) =>
+      new THREE.MeshPhongMaterial({ color: colour, shininess, specular })
+    const shellColour = 0x24333a
+    const trimColour = 0x0f1519
 
-  // -- hover-01: a 240 mm quad with four rotors and a downward light cone.
+    // The chassis: a low box with a smaller deck plate on top of it, which is
+    // what gives a machined body its bevelled read.
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.075, 0.3), metal(shellColour, 40))
+    chassis.position.y = 0.055
+    groundBody.add(chassis)
+    const deckPlate = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.022, 0.25), metal(0x2c4048, 70))
+    deckPlate.position.y = 0.103
+    groundBody.add(deckPlate)
+    const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.31), metal(trimColour, 20, 0x202830))
+    bumper.position.set(0.17, 0.05, 0)
+    groundBody.add(bumper)
+
+    // Four wheels: rubber tyres with a lighter hub, so the machine reads as
+    // standing on the sole rather than floating over it.
+    for (const [dx, dz] of [
+      [-0.13, -0.115],
+      [0.13, -0.115],
+      [-0.13, 0.115],
+      [0.13, 0.115],
+    ] as const) {
+      const tyre = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.046, 0.046, 0.034, 14),
+        metal(0x0b0e11, 8, 0x14181c),
+      )
+      tyre.rotation.z = Math.PI / 2
+      tyre.position.set(dx, 0.046, dz)
+      groundBody.add(tyre)
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.036, 10), metal(0x6b7681, 80))
+      hub.rotation.z = Math.PI / 2
+      hub.position.set(dx, 0.046, dz)
+      groundBody.add(hub)
+    }
+
+    // The sensor bar across the nose: a dark window with three apertures.
+    const sensorBar = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.05, 0.17), metal(0x0a0f13, 90, 0x2a3a46))
+    sensorBar.position.set(0.165, 0.082, 0)
+    groundBody.add(sensorBar)
+    for (const dz of [-0.05, 0, 0.05]) {
+      const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 10), metal(0x111a20, 100))
+      eye.rotation.z = Math.PI / 2
+      eye.position.set(0.184, 0.082, dz)
+      groundBody.add(eye)
+    }
+
+    // The work lamp: the light that makes the sweep legible.
+    const lampHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.022, 0.024, 12), metal(0x1b2228, 50))
+    lampHousing.rotation.z = Math.PI / 2
+    lampHousing.position.set(0.168, 0.105, 0.075)
+    groundBody.add(lampHousing)
+    const lampLens = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.006, 12),
+      new THREE.MeshBasicMaterial({ color: 0xfff0cf }),
+    )
+    lampLens.rotation.z = Math.PI / 2
+    lampLens.position.set(0.182, 0.105, 0.075)
+    groundBody.add(lampLens)
+
+    // The lidar puck, on a short mast at the nose. The puck spins, so it is
+    // held in a group of its own, set on the mast and not on the chassis.
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.045, 8), metal(0x39434a, 50))
+    mast.position.set(0.09, 0.135, 0)
+    groundBody.add(mast)
+    lidarSpin.position.set(0.09, 0.172, 0)
+    groundBody.add(lidarSpin)
+    const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.032, 14), metal(0x10161b, 40))
+    lidarSpin.add(lidar)
+    const lidarBand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14),
+      new THREE.MeshBasicMaterial({ color: COLOURS.agentGround }),
+    )
+    lidarSpin.add(lidarBand)
+
+    // The gimballed camera on the port flank.
+    const gimbal = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), metal(0x1a2329, 30))
+    gimbal.position.set(-0.02, 0.1, 0.108)
+    groundBody.add(gimbal)
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.014, 10), metal(0x05080a, 100))
+    lens.rotation.x = Math.PI / 2
+    lens.position.set(-0.02, 0.1, 0.134)
+    groundBody.add(lens)
+
+    // The status beacon on the tail.
+    const beaconCap = new THREE.Mesh(new THREE.SphereGeometry(0.013, 10, 8), metal(0x1a2128, 40))
+    beaconCap.position.set(-0.145, 0.105, 0)
+    groundBody.add(beaconCap)
+    const beaconLight = new THREE.Mesh(
+      new THREE.SphereGeometry(0.009, 8, 6),
+      new THREE.MeshBasicMaterial({ color: COLOURS.agentGround }),
+    )
+    beaconLight.position.set(-0.145, 0.113, 0)
+    groundBody.add(beaconLight)
+
+    // A real light, so the sole ahead of the rover is lit rather than painted.
+    const workLight = new THREE.SpotLight(0xffe9c4, 9, 4.2, 0.62, 0.55, 1.6)
+    workLight.position.set(0.17, 0.11, 0.075)
+    workLight.target.position.set(1.5, -0.05, 0.075)
+    groundBody.add(workLight)
+    groundBody.add(workLight.target)
+  }
+
+  // -- hover-01: a 240 mm quad.
+  //
+  // Four arms, four nacelles, four rotors, a gimbal camera under the nose and
+  // a lamp pointing down at the deckhead it is trying to read.
   const hoverBody = new THREE.Group()
-  hoverBody.add(
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(0.1, 0.1, 0.045, 16),
-      new THREE.MeshBasicMaterial({ color: 0x1c3b2a }),
-    ),
-  )
+  {
+    const metal = (colour: number, shininess = 60, specular = 0x506070) =>
+      new THREE.MeshPhongMaterial({ color: colour, shininess, specular })
+
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.055, 0.05, 16), metal(0x1c3328, 40))
+    pod.position.y = 0.012
+    hoverBody.add(pod)
+    const podTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      metal(0x243d30, 50),
+    )
+    podTop.position.y = 0.03
+    hoverBody.add(podTop)
+
+    // The arms and the motors at their ends.
+    for (const [dx, dz] of [
+      [0.085, 0.085],
+      [-0.085, 0.085],
+      [0.085, -0.085],
+      [-0.085, -0.085],
+    ] as const) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.014, 0.026), metal(0x2c5540, 50))
+      arm.position.set(dx / 2, 0.006, dz / 2)
+      arm.rotation.y = Math.atan2(dz, dx)
+      hoverBody.add(arm)
+      const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.03, 12), metal(0x14241c, 45))
+      motor.position.set(dx, 0.012, dz)
+      hoverBody.add(motor)
+    }
+
+    // The landing skids: two short legs and two feet.
+    for (const dz of [-0.05, 0.05]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.012), metal(0x1a2420, 30))
+      leg.position.set(0, -0.028, dz)
+      hoverBody.add(leg)
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.008, 0.016), metal(0x1a2420, 30))
+      foot.position.set(0, -0.055, dz)
+      hoverBody.add(foot)
+    }
+
+    // The gimbal camera under the nose, looking down.
+    const gimbal = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 10), metal(0x14201a, 30))
+    gimbal.position.set(0, -0.032, 0)
+    hoverBody.add(gimbal)
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.012, 10), metal(0x05080a, 100))
+    lens.position.set(0, -0.05, 0)
+    hoverBody.add(lens)
+
+    // The downward lamp.
+    const lamp = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.008, 12),
+      new THREE.MeshBasicMaterial({ color: 0xe8fff2 }),
+    )
+    lamp.position.set(0, -0.02, 0.038)
+    hoverBody.add(lamp)
+
+    // The status light on top.
+    const topLight = new THREE.Mesh(
+      new THREE.SphereGeometry(0.011, 8, 6),
+      new THREE.MeshBasicMaterial({ color: COLOURS.agentHover }),
+    )
+    topLight.position.set(0, 0.062, 0)
+    hoverBody.add(topLight)
+  }
   const rotor = new THREE.Group()
   for (const [dx, dz] of [
-    [0.1, 0.1],
-    [-0.1, 0.1],
-    [0.1, -0.1],
-    [-0.1, -0.1],
+    [0.085, 0.085],
+    [-0.085, 0.085],
+    [0.085, -0.085],
+    [-0.085, -0.085],
   ] as const) {
-    const arm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.012, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x2c5540 }),
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.056, 0.0045, 6, 18).rotateX(Math.PI / 2),
+      new THREE.MeshPhongMaterial({ color: 0x1c3328, shininess: 50 }),
     )
-    arm.position.set(dx / 2, 0, dz / 2)
-    arm.rotation.y = Math.atan2(dz, dx)
-    rotor.add(arm)
+    ring.position.set(dx, 0.03, dz)
+    rotor.add(ring)
+    // A blur disc: the disc is what a spinning rotor actually looks like, and
+    // the blades are what it looks like at two hundred revolutions a minute.
     const disc = new THREE.Mesh(
-      new THREE.TorusGeometry(0.05, 0.008, 6, 14).rotateX(Math.PI / 2),
+      new THREE.CircleGeometry(0.052, 16).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({
         color: COLOURS.agentHover,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
       }),
     )
-    disc.position.set(dx, 0.01, dz)
+    disc.position.set(dx, 0.03, dz)
     rotor.add(disc)
+    for (const a of [0, Math.PI]) {
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.096, 0.002, 0.014),
+        new THREE.MeshPhongMaterial({ color: 0x2a4a3a, shininess: 40 }),
+      )
+      blade.position.set(dx, 0.03, dz)
+      blade.rotation.y = a
+      rotor.add(blade)
+    }
   }
   rotor.position.y = 0.02
   hoverBody.add(rotor)
 
   // -- inch-01: an 80 mm crawler. It lives inside a 60 mm bore, so what the
-  //    viewer sees is its light, not its body.
+  //    viewer sees of it is its light and its track, not its body.
   const crawlerBody = new THREE.Group()
-  crawlerBody.add(
-    new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.035, 0.06, 4, 10).rotateZ(Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: COLOURS.agentCrawler }),
-    ),
-  )
-  crawlerBody.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(0.022, 8, 6),
+  {
+    const metal = (colour: number, shininess = 60, specular = 0x506070) =>
+      new THREE.MeshPhongMaterial({ color: colour, shininess, specular })
+    // Five segments, alternating, on a rubber track.
+    for (let i = 0; i < 5; i++) {
+      const link = new THREE.Mesh(
+        new THREE.BoxGeometry(0.013, 0.014, 0.02),
+        metal(i % 2 === 0 ? 0x3a4a52 : 0x2a3740, 50),
+      )
+      link.position.set(-0.03 + i * 0.015, 0, 0)
+      crawlerBody.add(link)
+    }
+    const track = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.011, 0.075, 10).rotateZ(Math.PI / 2),
+      metal(0x0c1013, 8, 0x14181c),
+    )
+    crawlerBody.add(track)
+    // The head: a lamp and a camera aperture.
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), metal(0x4d5f68, 40))
+    head.position.set(0.042, 0, 0)
+    crawlerBody.add(head)
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.0055, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xfff2d0 }),
-    ),
-  )
+    )
+    eye.position.set(0.05, 0.002, 0)
+    crawlerBody.add(eye)
+    // A stub of antenna.
+    const whip = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.018, 5), metal(0x8f959b, 80))
+    whip.position.set(-0.028, 0.014, 0)
+    whip.rotation.z = 0.5
+    crawlerBody.add(whip)
+  }
 
   const bodies: Record<string, THREE.Group> = {
     ground: groundBody,
@@ -788,10 +1092,11 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
   }
 
   for (const [cls, body] of Object.entries(bodies)) {
+    body.name = `agent:${cls}`
     group.add(body)
     const beacon = makeGlow(colours[cls] ?? 0xffffff, 1.0)
     group.add(beacon)
-    const label = makeLabel(names[cls] ?? cls, colours[cls] ?? 0xffffff, 0.4)
+    const label = makePlate(names[cls] ?? cls, 'standing by', colours[cls] ?? 0xffffff)
     group.add(label)
 
     // The lock-on reticle: a ring and four ticks, scaled with distance so it
@@ -901,13 +1206,15 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       label,
       reticle,
       cone,
-      rotor: cls === 'hover' ? rotor : cls === 'ground' ? lidar : null,
+      rotor: cls === 'hover' ? rotor : cls === 'ground' ? lidarSpin : null,
       trail,
       pings,
       pingClock: 0,
       lastX: Number.NaN,
       lastY: 0,
       lastZ: 0,
+      activity: '',
+      pack: '',
     })
   }
 
@@ -1070,9 +1377,34 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
       v.body.position.set(a.x, a.y, a.z)
       v.body.rotation.y = -a.heading
       v.beacon.position.set(a.x, a.y + 0.3, a.z)
-      v.label.position.set(a.x, a.y + 0.75, a.z)
+      const activity = activityOf(a)
+      const pack = `PACK ${Math.round(a.battery * 100)}%`
+      if (activity !== v.activity || pack !== v.pack) {
+        v.activity = activity
+        v.pack = pack
+        const plate = makePlate(
+          (names[v.cls] ?? v.cls).toUpperCase(),
+          activity,
+          colours[v.cls] ?? 0xffffff,
+          pack,
+        )
+        v.label.material.map?.dispose()
+        v.label.material.map = plate.material.map
+        v.label.scale.copy(plate.scale)
+      }
       if (v.rotor !== null) v.rotor.rotation.y = elapsed * (v.cls === 'hover' ? 22 : 3.5)
 
+      // The activity plate floats a fixed distance *above the machine on the
+      // screen*, whatever the range. Fixed in world space it disappears under
+      // the deckhead in a close-up and climbs out of frame in a wide one.
+      if (camera !== null) {
+        const d = camera.position.distanceTo(v.body.position)
+        const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 50
+        const halfHeight = d * Math.tan((fov * Math.PI) / 360)
+        v.label.position.set(a.x, a.y + 0.05 + halfHeight * 0.2, a.z)
+      } else {
+        v.label.position.set(a.x, a.y + 1.15, a.z)
+      }
       // The reticle scales with distance, so it covers the same fraction of the
       // screen at any range. A marker of fixed world size is either invisible
       // at thirty metres or enormous at four.
@@ -1082,8 +1414,6 @@ export function buildYachtScene(options: YachtSceneOptions): YachtScene {
         v.reticle.scale.setScalar(Math.max(0.12, d * 0.055))
         v.reticle.visible = d > 0.8
       }
-
-
     }
 
     // -- the findings.

@@ -464,6 +464,26 @@ export class OrbitShim {
   pitch = 0.9
   distance = 22
 
+  /**
+   * A box the camera may not leave, in world coordinates.
+   *
+   * ## Why this exists
+   *
+   * A shot that locks onto a machine inside a compartment will happily place
+   * the camera outside the compartment, on the far side of a bulkhead, where
+   * it sees a wall. The shot was correct as arithmetic and useless as a
+   * picture. Clamping the camera into the volume it is filming is what a camera
+   * operator does when the room is too small to back into: the camera slides
+   * along the wall and keeps the shot.
+   *
+   * `null` — the default — means no constraint, which is right for the house
+   * and for every exterior shot on the boat.
+   */
+  confine: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number } | null = null
+
+  /** The camera will not come closer to the subject than this, in metres. */
+  minDistance = 0
+
   private dragging = false
   private lastX = 0
   private lastY = 0
@@ -508,5 +528,32 @@ export class OrbitShim {
     const z = this.target.z + Math.sin(this.yaw) * Math.cos(this.pitch) * this.distance
     this.camera.position.set(x, y, z)
     this.camera.lookAt(this.target)
+    if (this.confine !== null) {
+      const c = this.confine
+      this.camera.position.set(
+        Math.min(Math.max(this.camera.position.x, c.minX), c.maxX),
+        Math.min(Math.max(this.camera.position.y, c.minY), c.maxY),
+        Math.min(Math.max(this.camera.position.z, c.minZ), c.maxZ),
+      )
+      // After clamping, re-look at the target so the shot stays locked.
+      this.camera.lookAt(this.target)
+      // A camera that has been pushed into the subject is inside the subject.
+      // Back it off along the line of sight until it is out in front again.
+      if (this.minDistance > 0) {
+        const dx = this.camera.position.x - this.target.x
+        const dy = this.camera.position.y - this.target.y
+        const dz = this.camera.position.z - this.target.z
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        if (d < this.minDistance && d > 1e-6) {
+          const k = this.minDistance / d
+          this.camera.position.set(
+            this.target.x + dx * k,
+            this.target.y + dy * k,
+            this.target.z + dz * k,
+          )
+        }
+      }
+      this.camera.lookAt(this.target)
+    }
   }
 }

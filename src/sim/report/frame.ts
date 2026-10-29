@@ -121,8 +121,19 @@ export type FrameOptions = {
  * `undefined`, which becomes `NaN` in the vertex buffer, and the agent vanishes from
  * the scene with no error anywhere. A crawler that renders nowhere looks exactly
  * like a crawler that has not started yet.
+ *
+ * ## Why it is exported
+ *
+ * The take recorder builds its own agent records, and it used to cast the pose
+ * itself. The crawler therefore went back to being drawn at the origin for the
+ * whole run — three hundred metres from the fuel line it was crawling — while
+ * `frameFromRun` projected it correctly. One projection, exported, used by both:
+ * a second copy of this logic is a second place for the bug to live.
  */
-function worldPositionOf(run: SimRun, agent: AgentState): { x: number; y: number; z: number; heading: number } {
+export function worldPositionOf(
+  run: SimRun,
+  agent: AgentState,
+): { x: number; y: number; z: number; heading: number } {
   // The crawler is a special case, and it was a bug.
   //
   // The agent's own pose for an inchworm is the SEED it was created with — an
